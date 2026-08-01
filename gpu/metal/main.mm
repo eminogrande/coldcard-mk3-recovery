@@ -121,6 +121,23 @@ int main(int argc, char **argv) {
         id<MTLBuffer> wBuf = [dev newBufferWithBytes:words8 length:2048 * 8 options:MTLResourceStorageModeShared];
         id<MTLBuffer> hBuf = [dev newBufferWithLength:1024 * sizeof(struct Hit) options:MTLResourceStorageModeShared];
         id<MTLBuffer> cBuf = [dev newBufferWithLength:4 options:MTLResourceStorageModeShared];
+        id<MTLBuffer> gBuf = [dev newBufferWithLength:256 * 96 options:MTLResourceStorageModeShared];
+
+        // one-time G doublings table (single-thread setup kernel)
+        id<MTLFunction> sfn = [lib newFunctionWithName:@"setupG"];
+        id<MTLComputePipelineState> spipe = [dev newComputePipelineStateWithFunction:sfn error:&err];
+        if (!spipe) { fprintf(stderr, "setup pipeline: %s\n", [[err localizedDescription] UTF8String]); return 1; }
+        @autoreleasepool {
+            id<MTLCommandBuffer> cb = [queue commandBuffer];
+            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            [enc setComputePipelineState:spipe];
+            [enc setBuffer:gBuf offset:0 atIndex:0];
+            [enc dispatchThreads:MTLSizeMake(1, 1, 1) threadsPerThreadgroup:MTLSizeMake(1, 1, 1)];
+            [enc endEncoding];
+            [cb commit];
+            [cb waitUntilCompleted];
+        }
+        fprintf(stderr, "[mscan] G table ready\n");
 
 
         uint64_t batchPads = batchThreads / skipMax;
@@ -143,6 +160,7 @@ int main(int argc, char **argv) {
                 [enc setBuffer:hBuf offset:0 atIndex:2];
                 [enc setBuffer:cBuf offset:0 atIndex:3];
                 [enc setBytes:&P length:sizeof(P) atIndex:4];
+                [enc setBuffer:gBuf offset:0 atIndex:5];
                 NSUInteger w = [pipe maxTotalThreadsPerThreadgroup];
                 if (w > 256) w = 256;
                 [enc dispatchThreads:MTLSizeMake(batchPads * skipMax, 1, 1)

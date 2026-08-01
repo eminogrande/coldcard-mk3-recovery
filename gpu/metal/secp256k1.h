@@ -251,6 +251,54 @@ inline Pt gPoint() {
     return g;
 }
 
+// mixed add: p (Jacobian) += q (affine). ~8 feMul, no ptDbl needed per bit.
+inline void ptAddMixed(thread Pt& p, device const Pt& qd) {
+    Pt q = qd;
+    if (ptIsInf(q)) return;
+    if (ptIsInf(p)) { p = q; p.z.l[0] = 1; return; }
+    Fe z1z1, u2, s2, h, r, t;
+    feSqr(z1z1, p.z);
+    feMul(u2, q.x, z1z1);
+    feMul(t, p.z, z1z1);
+    feMul(s2, q.y, t);
+    feSub(h, u2, p.x);
+    feSub(r, s2, p.y);
+    if (feIsZero(h)) {
+        if (feIsZero(r)) { ptDbl(p); return; }
+        ptSetInf(p); return;
+    }
+    Fe hh, hhh, v;
+    feSqr(hh, h);
+    feMul(hhh, h, hh);
+    feMul(v, p.x, hh);
+    Fe nx, ny, nz;
+    feSqr(nx, r);
+    feSub(nx, nx, hhh);
+    feSub(nx, nx, v);
+    feSub(nx, nx, v);
+    feSub(t, v, nx);
+    feMul(t, r, t);
+    Fe pyhhh; feMul(pyhhh, p.y, hhh);
+    feSub(ny, t, pyhhh);
+    feMul(nz, p.z, h);
+    p.x = nx; p.y = ny; p.z = nz;
+}
+
+// k*G via precomputed doublings table: table[j] = 2^j * G (affine).
+// ~128 mixed adds avg instead of 256 x (ptAdd + ptDbl).
+inline void mulGTable(thread Pt& r, thread const uchar k[32],
+                      device const Pt* table) {
+    ptSetInf(r);
+    for (int byte = 31; byte >= 0; byte--) {
+        for (int bit = 0; bit < 8; bit++) {
+            if ((k[byte] >> bit) & 1) {
+                int j = 8 * (31 - byte) + bit;
+                ptAddMixed(r, table[j]);
+            }
+        }
+    }
+}
+
 // k*G, k = 32 bytes big-endian. Plain double-and-add.
 inline void mulG(thread Pt& r, thread const uchar k[32]) {
     ptSetInf(r);

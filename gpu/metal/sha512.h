@@ -35,23 +35,24 @@ constant ulong K512[80] = {
 inline ulong ror64(ulong x, unsigned n) { return (x >> n) | (x << (64 - n)); }
 
 inline void sha512Block(thread Sha512& s, thread const uchar* p) {
-    ulong w[80];
+    // 16-word ring buffer instead of w[80]: 128B stack, no spills.
+    ulong w[16];
     for (int i = 0; i < 16; i++) {
         w[i] = (ulong(p[i*8]) << 56) | (ulong(p[i*8+1]) << 48) | (ulong(p[i*8+2]) << 40) |
                (ulong(p[i*8+3]) << 32) | (ulong(p[i*8+4]) << 24) | (ulong(p[i*8+5]) << 16) |
                (ulong(p[i*8+6]) << 8) | ulong(p[i*8+7]);
     }
-    for (int i = 16; i < 80; i++) {
-        ulong x = w[i-15], y = w[i-2];
-        ulong s0 = ror64(x,1) ^ ror64(x,8) ^ (x >> 7);
-        ulong s1 = ror64(y,19) ^ ror64(y,61) ^ (y >> 6);
-        w[i] = w[i-16] + s0 + w[i-7] + s1;
-    }
     ulong a=s.h[0],b=s.h[1],c=s.h[2],d=s.h[3],e=s.h[4],f=s.h[5],g=s.h[6],hh=s.h[7];
     for (int i = 0; i < 80; i++) {
+        if (i >= 16) {
+            ulong x = w[(i-15)&15], y = w[(i-2)&15];
+            ulong s0 = ror64(x,1) ^ ror64(x,8) ^ (x >> 7);
+            ulong s1 = ror64(y,19) ^ ror64(y,61) ^ (y >> 6);
+            w[i&15] = w[i&15] + s0 + w[(i-7)&15] + s1;
+        }
         ulong S1 = ror64(e,14) ^ ror64(e,18) ^ ror64(e,41);
         ulong ch = (e & f) ^ (~e & g);
-        ulong t1 = hh + S1 + ch + K512[i] + w[i];
+        ulong t1 = hh + S1 + ch + K512[i] + w[i&15];
         ulong S0 = ror64(a,28) ^ ror64(a,34) ^ ror64(a,39);
         ulong mj = (a & b) ^ (a & c) ^ (b & c);
         ulong t2 = S0 + mj;
@@ -126,17 +127,32 @@ inline void hmacSha512(thread const uchar* key, unsigned klen,
 }
 
 // PBKDF2-HMAC-SHA512, dkLen=64 (single block), salt = "mnemonic".
+// HMAC pads cached across rounds: ~4 compressions/round, not ~9.
 inline void pbkdf2Bip39(thread const uchar* pw, unsigned pwlen, thread uchar out[64]) {
+    uchar kblock[128];
+    for (int i = 0; i < 128; i++) kblock[i] = 0;
+    if (pwlen > 128) {
+        uchar kh[64]; sha512once(pw, pwlen, kh);
+        for (int i = 0; i < 64; i++) kblock[i] = kh[i];
+    } else {
+        for (unsigned i = 0; i < pwlen; i++) kblock[i] = pw[i];
+    }
+    uchar pad[128];
+    Sha512 ictx, octx, s;
+    for (int i = 0; i < 128; i++) pad[i] = kblock[i] ^ 0x36;
+    sha512Init(ictx); sha512Update(ictx, pad, 128);
+    for (int i = 0; i < 128; i++) pad[i] = kblock[i] ^ 0x5c;
+    sha512Init(octx); sha512Update(octx, pad, 128);
     uchar saltblk[12] = {'m','n','e','m','o','n','i','c',0,0,0,1};
     uchar u[64];
-    hmacSha512(pw, pwlen, saltblk, 12, u);
+    s = ictx; sha512Update(s, saltblk, 12); sha512Final(s, u);
+    s = octx; sha512Update(s, u, 64); sha512Final(s, u);
     uchar t[64];
     for (int i = 0; i < 64; i++) t[i] = u[i];
     for (int it = 1; it < 2048; it++) {
-        uchar nu[64];
-        hmacSha512(pw, pwlen, u, 64, nu);
-        for (int i = 0; i < 64; i++) t[i] ^= nu[i];
-        for (int i = 0; i < 64; i++) u[i] = nu[i];
+        s = ictx; sha512Update(s, u, 64); sha512Final(s, u);
+        s = octx; sha512Update(s, u, 64); sha512Final(s, u);
+        for (int i = 0; i < 64; i++) t[i] ^= u[i];
     }
     for (int i = 0; i < 64; i++) out[i] = t[i];
 }

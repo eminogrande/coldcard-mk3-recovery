@@ -95,7 +95,7 @@ inline EKey masterFromSeed(thread const uchar seed[64]) {
 }
 
 // CKDpriv. hardened: HMAC(cc, 0x00||key||idxBE); else HMAC(cc, pub||idxBE).
-inline EKey ckdPriv(thread const EKey& par, uint index) {
+inline EKey ckdPriv(thread const EKey& par, uint index, device const Pt* gtab) {
     uchar data[37];
     uint dlen;
     if (index & 0x80000000u) {
@@ -103,7 +103,7 @@ inline EKey ckdPriv(thread const EKey& par, uint index) {
         for (int i = 0; i < 32; i++) data[1 + i] = par.key[i];
         dlen = 33;
     } else {
-        Pt p; mulG(p, par.key);
+        Pt p; mulGTable(p, par.key, gtab);
         ptSerialize(p, data);
         dlen = 33;
     }
@@ -117,6 +117,29 @@ inline EKey ckdPriv(thread const EKey& par, uint index) {
     for (int i = 0; i < 32; i++) il[i] = I[i];
     scalarAddModN(c.key, il);
     return c;
+}
+
+// One-time setup: table[j] = 2^j * G in affine form (thread 0 only).
+kernel void setupG(device Pt* table [[buffer(0)]],
+                   uint gid [[thread_position_in_grid]]) {
+    if (gid != 0) return;
+    Pt g = gPoint();
+    for (int j = 0; j < 256; j++) {
+        Pt a = g;
+        if (j > 0) {
+            // convert to affine before storing
+            Fe zinv, z2;
+            feInv(zinv, a.z);
+            feSqr(z2, zinv);
+            feMul(a.x, a.x, z2);
+            feMul(a.y, a.y, z2);
+            feMul(a.y, a.y, zinv);
+            for (int i = 0; i < 8; i++) { a.z.l[i] = 0; }
+            a.z.l[0] = 1;
+        }
+        table[j] = a;
+        ptDbl(g);
+    }
 }
 
 // binary search 20-byte target in sorted flat array
@@ -142,6 +165,7 @@ kernel void scanKernel(device const uchar* targets [[buffer(0)]],
                        device Hit*         hits    [[buffer(2)]],
                        device atomic_uint* hitCnt  [[buffer(3)]],
                        constant Params&    P       [[buffer(4)]],
+                       device const Pt*    gtab    [[buffer(5)]],
                        uint gid [[thread_position_in_grid]]) {
     uint pad  = uint(P.padStart) + gid / P.skipMax;
     uint skip = gid % P.skipMax;
@@ -166,12 +190,12 @@ kernel void scanKernel(device const uchar* targets [[buffer(0)]],
     uchar seed[64];
     pbkdf2Bip39(sentence, slen, seed);
 
-    EKey acct = ckdPriv(ckdPriv(ckdPriv(masterFromSeed(seed), 84u|0x80000000u), 0u|0x80000000u), 0u|0x80000000u);
-    EKey ext  = ckdPriv(acct, 0u);
+    EKey acct = ckdPriv(ckdPriv(ckdPriv(masterFromSeed(seed), 84u|0x80000000u, gtab), 0u|0x80000000u, gtab), 0u|0x80000000u, gtab);
+    EKey ext  = ckdPriv(acct, 0u, gtab);
 
     for (uint idx = 0; idx < P.idxMax; idx++) {
-        EKey leaf = ckdPriv(ext, idx);
-        Pt pub; mulG(pub, leaf.key);
+        EKey leaf = ckdPriv(ext, idx, gtab);
+        Pt pub; mulGTable(pub, leaf.key, gtab);
         uchar ser[33]; ptSerialize(pub, ser);
         uchar h[20]; hash160(ser, 33, h);
         if (targetHit(targets, P.targetCount, h)) {
