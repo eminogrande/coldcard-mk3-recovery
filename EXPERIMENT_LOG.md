@@ -1,7 +1,14 @@
 # Coldcard Mk3 Recovery — Experiment Log
 
+**STATUS 2026-08-01 19:40 CEST: CPU-Phase beendet.** Hetzner-Flotte (skip 3,4,6,7)
+und Mac-Worker (skip 5) abgeschaltet — CUDA (RTX 4090, anderer Dev) ist der
+schnellere Weg und läuft auf seiner Seite weiter. Finale Coverage-Checkpoints
+(was getestet wurde, leer befunden): `artifacts/coverage/ckpt_skip{3,4,5,6,7}.json`
+(skip 3: 374,6M / 8,7% · skip 4: 302,6M / 7,0% · skip 5: 271,3M / 6,3% ·
+skip 6: 232,2M / 5,4% · skip 7: 174,2M / 4,1%). Spend gestoppt.
+
 Live log of what has been tried, what's running, what's excluded.
-Updated: 2026-08-01 14:35 CEST. Ops runbook: `OPS.md`. Proofs: `RESULTS.md`.
+Ops runbook: `OPS.md`. Proofs: `RESULTS.md`.
 
 ## Current hypothesis (ACTIVE)
 
