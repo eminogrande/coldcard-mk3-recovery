@@ -10,6 +10,8 @@ IMAGE=ubuntu-24.04
 LABEL=app=ccscan
 DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SSH_KEY_NAME=ccscan-key
+SSH="ssh -i $HOME/.ssh/id_ed25519 -o IdentitiesOnly=yes"
+SCP="scp -i $HOME/.ssh/id_ed25519 -o IdentitiesOnly=yes"
 
 if [[ ! -f ~/.ssh/id_ed25519.pub ]]; then
   ssh-keygen -t ed25519 -N '' -f ~/.ssh/id_ed25519
@@ -33,11 +35,11 @@ for i in $(seq 0 $((N-1))); do
   lo=$(( i * SKIPS_PER_BOX )); hi=$(( lo + SKIPS_PER_BOX ))
   (
     ssh-keygen -R "$ip" >/dev/null 2>&1 || true
-    until ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 root@"$ip" true 2>/dev/null; do sleep 3; done
-    ssh root@"$ip" 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq golang-go libssl-dev >/dev/null 2>&1'
-    scp -q "$TAR" root@"$ip":/root/
-    ssh root@"$ip" 'mkdir -p /root/cc && tar -xzf /root/ccscan-src.tar.gz -C /root/cc && cd /root/cc/scan && go build -o ccscan .'
-    ssh root@"$ip" "cd /root/cc/scan && nohup ./ccscan -mode sweep -targets ../targets/billfowler.txt -rtc-tr 0 -rtc-ssr 0 -skip-lo $lo -skip-hi $hi -mixer-skip 0 -nidx 16 -checkpoint /root/ckpt.json > /root/sweep.log 2>&1 &"
+    until $SSH -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 root@"$ip" true 2>/dev/null; do sleep 3; done
+    $SSH root@"$ip" 'export DEBIAN_FRONTEND=noninteractive; apt-get update -qq && apt-get install -y -qq golang-go libssl-dev >/dev/null 2>&1'
+    $SCP -q "$TAR" root@"$ip":/root/
+    $SSH root@"$ip" 'mkdir -p /root/cc && tar -xzf /root/ccscan-src.tar.gz -C /root/cc && cd /root/cc/scan && go build -o ccscan .'
+    $SSH root@"$ip" "cd /root/cc/scan && nohup ./ccscan -mode sweep -targets ../targets/all.txt -rtc-tr 0 -rtc-ssr 0 -skip-lo $lo -skip-hi $hi -mixer-skip 0 -nidx 16 -checkpoint /root/ckpt.json > /root/sweep.log 2>&1 &"
     echo "box ccscan-$i ($ip): skips [$lo,$hi) running"
   ) &
 done
