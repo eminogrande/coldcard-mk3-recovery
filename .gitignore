@@ -2,6 +2,9 @@
 ext/
 __pycache__/
 scan/ccscan
+gpu/metal/mscan
+gpu/metal/*.metallib
+goscan/goscan
 ckpt*.json
 *.log
 .DS_Store

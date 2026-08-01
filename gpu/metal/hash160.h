@@ -112,11 +112,11 @@ inline void ripemd160_32(thread const uchar in[32], thread uchar out[20]) {
         tr += er; ar=er; er=dr; dr=(cr<<10)|(cr>>22); cr=br; br=tr;
     }
     uint hs[5];
-    hs[0] = 0x67452301u + cl + dr;
-    hs[1] = 0xefcdab89u + dl + er;
-    hs[2] = 0x98badcfeu + el + ar;
-    hs[3] = 0x10325476u + al + br;
-    hs[4] = 0xc3d2e1f0u + bl + cr;
+    hs[0] = 0xefcdab89u + cl + dr;
+    hs[1] = 0x98badcfeu + dl + er;
+    hs[2] = 0x10325476u + el + ar;
+    hs[3] = 0xc3d2e1f0u + al + br;
+    hs[4] = 0x67452301u + bl + cr;
     for (int i = 0; i < 5; i++) {
         out[i*4]=uchar(hs[i]); out[i*4+1]=uchar(hs[i]>>8);
         out[i*4+2]=uchar(hs[i]>>16); out[i*4+3]=uchar(hs[i]>>24);
