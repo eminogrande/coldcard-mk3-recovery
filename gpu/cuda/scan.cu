@@ -88,6 +88,7 @@ __device__ inline void sha512Block(Sha512 &s, const uchar *p) {
                (ulong(p[i*8+6]) << 8) | ulong(p[i*8+7]);
     }
     ulong a=s.h[0],b=s.h[1],c=s.h[2],d=s.h[3],e=s.h[4],f=s.h[5],g=s.h[6],hh=s.h[7];
+    #pragma unroll 16
     for (int i = 0; i < 80; i++) {
         if (i >= 16) {
             ulong x = w[(i-15)&15], y = w[(i-2)&15];
@@ -752,6 +753,56 @@ __global__ void setupG(Pt *table) {
     }
 }
 
+// debug: print every chain stage for one known candidate
+__global__ void debugCandidate(uint pad, uint skip, uint rtcTR, uint rtcSSR,
+                               const uchar *words8, const Pt *gtab) {
+    uint raw[8];
+    bool ok = rngRawHP(pad, rtcTR, rtcSSR, (int)skip, raw);
+    printf("ok=%d rawB=", (int)ok);
+    uchar rawB[32];
+    for (int i = 0; i < 8; i++) {
+        rawB[i*4+0] = uchar(raw[i]);
+        rawB[i*4+1] = uchar(raw[i] >> 8);
+        rawB[i*4+2] = uchar(raw[i] >> 16);
+        rawB[i*4+3] = uchar(raw[i] >> 24);
+    }
+    for (int i = 0; i < 32; i++) printf("%02x", rawB[i]);
+    uchar ent[32];
+    sha256once(rawB, 32, ent);
+    printf("\nent=");
+    for (int i = 0; i < 32; i++) printf("%02x", ent[i]);
+    uchar sentence[256]; uint slen;
+    entropyToSentence(ent, words8, sentence, slen);
+    printf("\nslen=%u sent16=", slen);
+    for (int i = 0; i < 16; i++) printf("%02x", sentence[i]);
+    uchar seed[64];
+    pbkdf2Bip39(sentence, slen, seed);
+    printf("\nseed16=");
+    for (int i = 0; i < 16; i++) printf("%02x", seed[i]);
+    EKey acct = ckdPriv(ckdPriv(ckdPriv(masterFromSeed(seed), 84u|0x80000000u, gtab), 0u|0x80000000u, gtab), 0u|0x80000000u, gtab);
+    {
+        EKey ms = masterFromSeed(seed);
+        printf("\nmaster=");
+        for (int i = 0; i < 32; i++) printf("%02x", ms.key[i]);
+        printf("\nmaster_cc=");
+        for (int i = 0; i < 32; i++) printf("%02x", ms.cc[i]);
+    }
+    printf("\nacct=");
+    for (int i = 0; i < 32; i++) printf("%02x", acct.key[i]);
+    EKey ext  = ckdPriv(acct, 0u, gtab);
+    printf("\next =");
+    for (int i = 0; i < 32; i++) printf("%02x", ext.key[i]);
+    EKey leaf = ckdPriv(ext, 0u, gtab);
+    printf("\nleaf=");
+    for (int i = 0; i < 32; i++) printf("%02x", leaf.key[i]);
+    Pt pub; mulGTable(pub, leaf.key, gtab);
+    uchar ser[33]; ptSerialize(pub, ser);
+    uchar h[20]; hash160(ser, 33, h);
+    printf("\nh160=");
+    for (int i = 0; i < 20; i++) printf("%02x", h[i]);
+    printf("\n");
+}
+
 // one thread = one (pad, skip) candidate
 __global__ void scanKernel(const uchar *targets, const uchar *words8,
                            Hit *hits, uint *hitCnt, Params P, const Pt *gtab) {
@@ -840,9 +891,11 @@ int main(int argc, char **argv) {
     const char *targetsF = nullptr, *wordsF = "bip39_english.txt", *outF = "hits_gpu.json";
     uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16;
     ulong padStart = 0, batchThreads = 1u << 22;
+    ulong debugPad = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:")) != -1) {
+    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:")) != -1) {
         switch (opt) {
+        case 'D': debugPad = strtoull(optarg, NULL, 0); break;
         case 't': targetsF = optarg; break;
         case 'w': wordsF = optarg; break;
         case 'r': rtcTR = (uint)strtoul(optarg, NULL, 0); break;
@@ -890,16 +943,23 @@ int main(int argc, char **argv) {
     }
 
     uchar *dTargets, *dWords; Hit *dHits; uint *dCnt; Pt *dG;
-    CUDA_CHECK(cudaMalloc(&dTargets, progs.size()));
+    CUDA_CHECK(cudaMalloc(&dTargets, progs.size() * 20));
     CUDA_CHECK(cudaMalloc(&dWords, words8.size()));
     CUDA_CHECK(cudaMalloc(&dHits, 1024 * sizeof(Hit)));
     CUDA_CHECK(cudaMalloc(&dCnt, 4));
     CUDA_CHECK(cudaMalloc(&dG, 256 * sizeof(Pt)));
-    CUDA_CHECK(cudaMemcpy(dTargets, progs.data(), progs.size(), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(dTargets, progs.data(), progs.size() * 20, cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(dWords, words8.data(), words8.size(), cudaMemcpyHostToDevice));
 
     setupG<<<1, 1>>>(dG);
     CUDA_CHECK(cudaDeviceSynchronize());
+
+    if (debugPad) {
+        debugCandidate<<<1, 1>>>((uint)debugPad, skipMax, rtcTR, rtcSSR, dWords, dG);
+        CUDA_CHECK(cudaDeviceSynchronize());
+        return 0;
+    }
+
     fprintf(stderr, "[cscan] G table ready\n");
 
     ulong batchPads = batchThreads / skipMax;

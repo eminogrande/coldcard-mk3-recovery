@@ -2,6 +2,7 @@
 # Watchdog for label app=ccscan: spend cap auto-destroy + hit detection.
 # Hard cap €45 (target budget €50, margin for polling lag).
 set -u
+export PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH
 SSH="ssh -i $HOME/.ssh/id_ed25519 -o IdentitiesOnly=yes -o ConnectTimeout=8 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR"
 CAP_EUR=45
 LOG=/tmp/fleet-watch.log
