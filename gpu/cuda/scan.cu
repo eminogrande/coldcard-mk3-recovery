@@ -34,13 +34,15 @@ __device__ inline uint yasNext(Yas &y) {
     return y.pad ^ (y.d << 5) ^ (y.pad >> 18) ^ (y.dat << 1);
 }
 
-// raw[0..7] = chip^mixer words. chip = {pad, rtcTR, rtcSSR, 0}; skip = prior
-// chip draws; mixer fresh. false if on-device fatal (chip==last).
+// raw[0..7] = chip^mixer words. chip = {pad, rtcTR, rtcSSR, 0}; chip advanced
+// by skip; mixer = {0x0A8CE26F, 69, 233, 0} advanced by mixerSkip (lockstep
+// model: skip == mixerSkip). false if on-device fatal (chip==last).
 __device__ inline bool rngRawHP(uint pad32, uint rtcTR, uint rtcSSR,
-                                int skip, uint raw[8]) {
+                                int skip, int mixerSkip, uint raw[8]) {
     Yas c = {pad32, rtcTR, rtcSSR, 0u};
     for (int i = 0; i < skip; i++) yasNext(c);
     Yas m = {0x0A8CE26Fu, 69u, 233u, 0u};
+    for (int i = 0; i < mixerSkip; i++) yasNext(m);
     uint last = 0;
     for (int i = 0; i < 8; i++) {
         uint cv = yasNext(c);
@@ -728,7 +730,7 @@ __device__ inline bool targetHit(const uchar *targets, uint count, const uchar h
     return false;
 }
 
-struct Params { ulong padStart; uint skipMax, idxMax, targetCount, rtcTR, rtcSSR, skipBase; };
+struct Params { ulong padStart; uint skipMax, idxMax, targetCount, rtcTR, rtcSSR, skipBase, lockstep; };
 struct Hit { uint pad, skip, idx; uchar priv[32]; uchar h160[20]; };
 
 // one-time G doublings table (thread 0)
@@ -756,7 +758,7 @@ __global__ void setupG(Pt *table) {
 __global__ void debugCandidate(uint pad, uint skip, uint rtcTR, uint rtcSSR,
                                const uchar *words8, const Pt *gtab) {
     uint raw[8];
-    bool ok = rngRawHP(pad, rtcTR, rtcSSR, (int)skip, raw);
+    bool ok = rngRawHP(pad, rtcTR, rtcSSR, (int)skip, 0, raw);
     printf("ok=%d rawB=", (int)ok);
     uchar rawB[32];
     for (int i = 0; i < 8; i++) {
@@ -810,7 +812,7 @@ __global__ void scanKernel(const uchar *targets, const uchar *words8,
     uint skip = P.skipBase + uint(gid % P.skipMax);
 
     uint raw[8];
-    if (!rngRawHP(pad, P.rtcTR, P.rtcSSR, int(skip), raw)) return;
+    if (!rngRawHP(pad, P.rtcTR, P.rtcSSR, int(skip), P.lockstep ? int(skip) : 0, raw)) return;
 
     uchar rawB[32];
     for (int i = 0; i < 8; i++) {
@@ -893,15 +895,16 @@ static double nowSec() {
 
 int main(int argc, char **argv) {
     const char *targetsF = nullptr, *wordsF = "bip39_english.txt", *outF = "hits_gpu.json";
-    uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16, skipBase = 0;
+    uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16, skipBase = 0, lockstep = 0;
     ulong padStart = 0, padEnd = 1ULL << 32, batchThreads = 1u << 22;
     ulong debugPad = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:e:")) != -1) {
+    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:e:M:")) != -1) {
         switch (opt) {
         case 'D': debugPad = strtoull(optarg, NULL, 0); break;
         case 'B': skipBase = (uint)strtoul(optarg, NULL, 0); break;
         case 'e': padEnd = strtoull(optarg, NULL, 0); break;
+        case 'M': lockstep = (uint)strtoul(optarg, NULL, 0); break;
         case 't': targetsF = optarg; break;
         case 'w': wordsF = optarg; break;
         case 'r': rtcTR = (uint)strtoul(optarg, NULL, 0); break;
@@ -976,7 +979,7 @@ int main(int argc, char **argv) {
     double t0 = nowSec(), elapsed0 = 0;
     ulong done = 0;
     for (ulong base = padStart; base < padEnd; base += batchPads) {
-        Params P = { base, skipMax, idxMax, tcount, rtcTR, rtcSSR, skipBase };
+        Params P = { base, skipMax, idxMax, tcount, rtcTR, rtcSSR, skipBase, lockstep };
         CUDA_CHECK(cudaMemset(dCnt, 0, 4));
         ulong threads = batchPads * skipMax;
         uint block = 256;
