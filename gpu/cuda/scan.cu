@@ -894,13 +894,14 @@ static double nowSec() {
 int main(int argc, char **argv) {
     const char *targetsF = nullptr, *wordsF = "bip39_english.txt", *outF = "hits_gpu.json";
     uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16, skipBase = 0;
-    ulong padStart = 0, batchThreads = 1u << 22;
+    ulong padStart = 0, padEnd = 1ULL << 32, batchThreads = 1u << 22;
     ulong debugPad = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:")) != -1) {
+    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:e:")) != -1) {
         switch (opt) {
         case 'D': debugPad = strtoull(optarg, NULL, 0); break;
         case 'B': skipBase = (uint)strtoul(optarg, NULL, 0); break;
+        case 'e': padEnd = strtoull(optarg, NULL, 0); break;
         case 't': targetsF = optarg; break;
         case 'w': wordsF = optarg; break;
         case 'r': rtcTR = (uint)strtoul(optarg, NULL, 0); break;
@@ -974,7 +975,7 @@ int main(int argc, char **argv) {
 
     double t0 = nowSec(), elapsed0 = 0;
     ulong done = 0;
-    for (ulong base = padStart; base < (1ULL << 32); base += batchPads) {
+    for (ulong base = padStart; base < padEnd; base += batchPads) {
         Params P = { base, skipMax, idxMax, tcount, rtcTR, rtcSSR, skipBase };
         CUDA_CHECK(cudaMemset(dCnt, 0, 4));
         ulong threads = batchPads * skipMax;
@@ -988,7 +989,7 @@ int main(int argc, char **argv) {
         double batchDt = dt - elapsed0; elapsed0 = dt;
         done += batchPads;
         double rate = done / dt;
-        double remain = ((double)(1ULL << 32) - padStart) - done;
+        double remain = ((double)padEnd - padStart) - done;
         fprintf(stderr, "[cscan] pad~%llu  %.2f Mpads/s  batch %.1fs  eta %.1fh\n",
                 base + batchPads, rate / 1e6, batchDt, remain / rate / 3600);
         if (hits) {
