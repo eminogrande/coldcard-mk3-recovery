@@ -728,7 +728,7 @@ __device__ inline bool targetHit(const uchar *targets, uint count, const uchar h
     return false;
 }
 
-struct Params { ulong padStart; uint skipMax, idxMax, targetCount, rtcTR, rtcSSR; };
+struct Params { ulong padStart; uint skipMax, idxMax, targetCount, rtcTR, rtcSSR, skipBase; };
 struct Hit { uint pad, skip, idx; uchar priv[32]; uchar h160[20]; };
 
 // one-time G doublings table (thread 0)
@@ -807,7 +807,7 @@ __global__ void scanKernel(const uchar *targets, const uchar *words8,
                            Hit *hits, uint *hitCnt, Params P, const Pt *gtab) {
     ulong gid = ulong(blockIdx.x) * blockDim.x + threadIdx.x;
     uint pad  = uint(P.padStart) + uint(gid / P.skipMax);
-    uint skip = uint(gid % P.skipMax);
+    uint skip = P.skipBase + uint(gid % P.skipMax);
 
     uint raw[8];
     if (!rngRawHP(pad, P.rtcTR, P.rtcSSR, int(skip), raw)) return;
@@ -893,13 +893,14 @@ static double nowSec() {
 
 int main(int argc, char **argv) {
     const char *targetsF = nullptr, *wordsF = "bip39_english.txt", *outF = "hits_gpu.json";
-    uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16;
+    uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16, skipBase = 0;
     ulong padStart = 0, batchThreads = 1u << 22;
     ulong debugPad = 0;
     int opt;
-    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:")) != -1) {
+    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:")) != -1) {
         switch (opt) {
         case 'D': debugPad = strtoull(optarg, NULL, 0); break;
+        case 'B': skipBase = (uint)strtoul(optarg, NULL, 0); break;
         case 't': targetsF = optarg; break;
         case 'w': wordsF = optarg; break;
         case 'r': rtcTR = (uint)strtoul(optarg, NULL, 0); break;
@@ -974,7 +975,7 @@ int main(int argc, char **argv) {
     double t0 = nowSec(), elapsed0 = 0;
     ulong done = 0;
     for (ulong base = padStart; base < (1ULL << 32); base += batchPads) {
-        Params P = { base, skipMax, idxMax, tcount, rtcTR, rtcSSR };
+        Params P = { base, skipMax, idxMax, tcount, rtcTR, rtcSSR, skipBase };
         CUDA_CHECK(cudaMemset(dCnt, 0, 4));
         ulong threads = batchPads * skipMax;
         uint block = 256;
