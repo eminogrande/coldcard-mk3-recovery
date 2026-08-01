@@ -1,0 +1,7 @@
+.venv/
+ext/
+__pycache__/
+scan/ccscan
+ckpt*.json
+*.log
+.DS_Store
