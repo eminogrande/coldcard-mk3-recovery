@@ -1,0 +1,14 @@
+{
+  "scheme": "BIP322-simple-P2WPKH",
+  "address": "bc1qatz6gp0x5m8x8ggdaxafeuuvt3wrwh8vmrvl0m",
+  "message": "Coldcard Mk3 weak-RNG research PoC - key control",
+  "proof_b64": "AkcwRAIgN9YnT7D83whPfzoDpQBalu3wh70bcX6QeaI8XjqcAIgCIGiZuDz4ZbdG1huNmi5DrOKpYlXF2/RgjQC1X8aUgsO+ASEDXR2sT0iCDo+jmYuoK0mdWmKlmrDYBtd2+m3ODWSzC+4=",
+  "verified": true,
+  "source_hit": "hit_cuda_planted.json",
+  "recovery": {
+    "pad": 3547157718,
+    "skip": 3,
+    "idx": 0,
+    "h160": "eac5a405e6a6ce63a10de9ba9cf38c5c5c375cec"
+  }
+}

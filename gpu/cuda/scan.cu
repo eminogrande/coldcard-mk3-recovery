@@ -88,7 +88,6 @@ __device__ inline void sha512Block(Sha512 &s, const uchar *p) {
                (ulong(p[i*8+6]) << 8) | ulong(p[i*8+7]);
     }
     ulong a=s.h[0],b=s.h[1],c=s.h[2],d=s.h[3],e=s.h[4],f=s.h[5],g=s.h[6],hh=s.h[7];
-    #pragma unroll 16
     for (int i = 0; i < 80; i++) {
         if (i >= 16) {
             ulong x = w[(i-15)&15], y = w[(i-2)&15];
@@ -301,7 +300,7 @@ __device__ inline void ripemd160_32(const uchar in[32], uchar out[20]) {
     }
 }
 
-__device__ inline void hash160(const uchar *data, uint len, uchar out[20]) {
+__device__ __noinline__ void hash160(const uchar *data, uint len, uchar out[20]) {
     uchar sh[32];
     sha256once(data, len, sh);
     ripemd160_32(sh, out);
@@ -837,6 +836,11 @@ __global__ void scanKernel(const uchar *targets, const uchar *words8,
         Pt pub; mulGTable(pub, leaf.key, gtab);
         uchar ser[33]; ptSerialize(pub, ser);
         uchar h[20]; hash160(ser, 33, h);
+        if (P.padStart == 3547156718UL && gid == 4003UL && idx == 0) {
+            printf("DBG pad=%u skip=%u rtc=%u/%u h=", pad, skip, P.rtcTR, P.rtcSSR);
+            for (int j = 0; j < 20; j++) printf("%02x", h[j]);
+            printf("\n");
+        }
         if (targetHit(targets, P.targetCount, h)) {
             uint slot = atomicAdd(hitCnt, 1u);
             if (slot < 1024u) {
