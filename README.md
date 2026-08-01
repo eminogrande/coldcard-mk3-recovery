@@ -14,10 +14,17 @@ fallback instead of the hardware TRNG. Seed = deterministic function of
 | Planted-wallet recovery, address-only → mnemonic → key | done, bit-exact (Python, Go, Metal, CUDA) |
 | BIP322 offline proof of key control (sign + verify tool) | done, self-tested |
 | Third-party demo address recovery + BIP322 proof | done (`artifacts/`) |
-| CUDA port validated on RTX 4090 (vast.ai) | done |
-| Real-victim target set (2,311 bc1q addresses) | done |
-| **Real-victim GPU sweep (rtc 0/0, skip 0–2)** | **running on rented 4090** |
+| CUDA port validated on RTX 4090 (vast.ai) | done (2 bugs fixed: buffer size, pragma-unroll miscompile) |
+| Real-victim target set (2,311 bc1q + 5 notables = 2,316) | done |
+| **CPU sweep, rtc 0/0, skip 0–7 (Hetzner fleet + M4)** | **done — no hit**, ~1.4B candidates, coverage record `artifacts/coverage/` |
+| **Real-victim GPU sweep (CUDA, rtc 0/0, skip 0–2)** | **running on rented 4090** (other contributor) |
+| Multi-GPU scaling (pad/skip sharding via `-e`/`-B`) | next |
 | BIP44/49 derivation for the 23 non-segwit targets | todo |
+
+**No real-victim key recovered yet.** Every recovered key so far is a
+synthetic planted demo or a third-party published demo address. The live
+sweep tests whether any of the 2,316 drained wallets falls in the
+rtc 0/0 hypothesis window.
 
 See `RESULTS.md` for the full proof table, bugs found, and cost math.
 See `OPS.md` for the sweep infrastructure/runbook (Hetzner fleet, watchdog,
@@ -32,7 +39,9 @@ skip-map / coverage log.
 - `proof/bip322.py` — BIP322 simple signatures for P2WPKH: sign/verify/selftest
 - `targets/billfowler.txt` — 13 victim wallet addresses, extracted from the
   inputs of the 13 drain transactions the victim published (public chain data)
-- `artifacts/` — planted-demo recovery + signature artifacts
+- `artifacts/` — planted-demo recovery + signature artifacts;
+  `artifacts/coverage/` — final CPU-sweep checkpoints (skip 3–7, space
+  searched and found empty)
 - `ext/` — third-party references (not vendored): DK27ss/ColdCard-38M-PoC,
   3z/coldcard-mk3-rng-disclosure
 

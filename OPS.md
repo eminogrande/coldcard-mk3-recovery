@@ -1,13 +1,20 @@
 # Ops — sweep infrastructure & runbook
 
+> **STATUS 2026-08-01 19:40 CEST: CPU fleet phase ENDED.** All Hetzner boxes
+> (s3,s4,s6,s7) and the M4 worker were shut down — CUDA (RTX 4090, other
+> contributor) is the faster path and continues on his side. Billing stopped;
+> final coverage checkpoints saved to `artifacts/coverage/`. Watchdog launchd
+> job unloaded. This file is now the **historical runbook** — how the fleet
+> was run and how to re-fire it if the hypothesis changes.
+
 Operations side of the recovery sweep: who scans what, how the fleet is
 run, how spend is capped, how hits are caught. For proofs/targets/cost-per-
 engine see `RESULTS.md`. This file is the no-nonsense ops log.
 
-## Sweep map (current, no duplication)
+## Sweep map (at shutdown, no duplication)
 
-Every chip-skip is assigned to exactly one worker. No two workers scan the
-same (skip, pad) space.
+Every chip-skip was assigned to exactly one worker. No two workers scanned
+the same (skip, pad) space.
 
 | chip-skip | worker | engine | rate | cost |
 |---|---|---|---|---|
@@ -95,8 +102,8 @@ Log: `/tmp/fleet-watch.log` (5-min entries). Hit line: `*** REAL HIT ***`.
 |---|---|
 | Positive-control test box (CPX62, planted hit) | ≈ €0.21 |
 | Fleet skips 0–2 (3 boxes, ~2.6h, deleted — redundant with CUDA) | ≈ €1.62 |
-| Running fleet s3,s4,s6,s7 (watchdog) | €1.30 → €0.83/h |
-| **Total to date** | **≈ €3.3** |
+| Fleet skips 3,4,6,7 (4 boxes until shutdown) | ≈ €1.66 |
+| **Final total (CPU phase, ended 19:40)** | **≈ €3.5** |
 
 Budget: €50 total. Cap logic guards the running fleet; CUDA side is the
 other dev's separate vast.ai budget (~$0.26/h).
