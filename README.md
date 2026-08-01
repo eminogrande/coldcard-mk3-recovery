@@ -20,6 +20,9 @@ fallback instead of the hardware TRNG. Seed = deterministic function of
 | BIP44/49 derivation for the 23 non-segwit targets | todo |
 
 See `RESULTS.md` for the full proof table, bugs found, and cost math.
+See `OPS.md` for the sweep infrastructure/runbook (Hetzner fleet, watchdog,
+spend cap, cost tracking) and `EXPERIMENT_LOG.md` for the live hypothesis /
+skip-map / coverage log.
 
 ## Layout
 
