@@ -11,14 +11,15 @@ fallback instead of the hardware TRNG. Seed = deterministic function of
 | Milestone | State |
 |---|---|
 | RNG model cross-validated (3z ≡ DK27ss, byte-identical) | done |
-| Planted-wallet recovery, address-only → mnemonic → key | done, bit-exact |
+| Planted-wallet recovery, address-only → mnemonic → key | done, bit-exact (Python, Go, Metal, CUDA) |
 | BIP322 offline proof of key control (sign + verify tool) | done, self-tested |
-| Real-victim target set (13 addresses, public chain data) | done |
-| CPU sweep vs real targets (rtc 0/0, skip 0–8) | running, no hit yet |
-| Metal GPU sweep | in progress (option A) |
+| Third-party demo address recovery + BIP322 proof | done (`artifacts/`) |
+| CUDA port validated on RTX 4090 (vast.ai) | done |
+| Real-victim target set (2,311 bc1q addresses) | done |
+| **Real-victim GPU sweep (rtc 0/0, skip 0–2)** | **running on rented 4090** |
+| BIP44/49 derivation for the 23 non-segwit targets | todo |
 
-**No real victim key has been recovered.** The only recovered key is the
-synthetic planted demo wallet (`artifacts/hit_planted_demo.json`).
+See `RESULTS.md` for the full proof table, bugs found, and cost math.
 
 ## Layout
 
