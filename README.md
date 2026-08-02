@@ -1,6 +1,10 @@
 # Coldcard Mk3 weak-RNG key recovery
 
-Private research repo for the July 2026 COLDCARD Mk3 RNG vulnerability
+**📖 [BLOG.md — the full technical writeup](BLOG.md): rebuilding the recovery
+pipeline, proving it on a third-party address, and the rigorous math of why
+mass recovery needs UID priors (and what that implies about the thefts).**
+
+Research repo for the July 2026 COLDCARD Mk3 RNG vulnerability
 (fw 4.0.1–4.1.9): `rng_get()` links to MicroPython's Yasmarang software
 fallback instead of the hardware TRNG. Seed = deterministic function of
 `pad = uid32 ^ SysTick`, `RTC_TR`, `RTC_SSR`, and the RNG call history
