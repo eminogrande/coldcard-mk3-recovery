@@ -1,51 +1,44 @@
-# Rebuilding the COLDCARD Mk3 Weak-RNG Key Recovery Pipeline — and Mapping Exactly Where It Breaks
+# Rebuilding the COLDCARD Mk3 weak-RNG recovery pipeline
 
-*An independent reproduction of the July 2026 COLDCARD RNG vulnerability, with a
-working scanner on four engines, a third-party key recovery proof, and a rigorous
-answer to the question everyone is asking: can the stolen funds be recovered by
-re-enumerating the seeds?*
+*Independent reproduction of the July 2026 COLDCARD RNG vulnerability,
+including bit-exact CPU/GPU implementations, failed assumptions, and corrected
+split-state search model.*
 
-**TL;DR**
+## Executive summary
 
-- We rebuilt the full Mk3 (fw 4.0.1–4.1.9) seed-generation chain — MicroPython's
-  Yasmarang fallback ⊕ libngu's whitener — and validated it bit-exact on four
-  independent implementations (Python, Go/CPU, Apple Metal, CUDA).
-- We recovered the private key for an **independently created** demo address
-  published by another researcher (DK27ss), from the address alone, and proved
-  control with a BIP322 offline signature. The pipeline works.
-- We then ran 14× RTX 4090 through the "obvious" enumeration windows — and hit
-  nothing, because the obvious model is wrong. Disassembling the firmware and
-  reading MicroPython's `rtc.c` showed why: **the RTC is initialized to
-  00:00:00 at first RNG use and counts session uptime**, so `RTC->TR` at seed
-  generation is minutes of uptime, not zero.
-- Corrected enumeration math says a universal, device-agnostic sweep is
-  ~10^15–10^17 candidates — infeasible. The observed mass theft therefore
-  implies the attacker has **per-device UID knowledge at scale** (a production/
-  distribution data leak), or a composition nobody has published.
-- Practical consequence for victims: **recovery by brute force is not possible
-  without device-specific priors. Migrate now. Anyone offering "recovery" is
-  scamming you.**
+- COLDCARD Mk2/Mk3 firmware 4.0.1–4.1.9 routed wallet seed generation through
+  MicroPython's deterministic Yasmarang fallback, not STM32 hardware TRNG.
+- Full seed-to-address pipeline was reconstructed in Python, Go, Apple Metal,
+  and CUDA. Planted targets were recovered on every applicable engine.
+- A separately published demo target was recovered and proved with BIP322. It
+  was a public demo, **not a drained victim**.
+- **No real victim key was recovered as of this snapshot.** A corrected,
+  budget-limited RTX 4090 search is live.
+- Earlier fleet searched `RTC=0/0`, chip skip 0–8, mixer skip 0. RTC was
+  plausible; call-history model was wrong. Libngu shuffle retries advance only
+  mixer, and fresh-device setup consumes thousands of words.
+- Correct CUDA scanner supports both independent fixed-skip ranges and a
+  source-faithful physical first-boot mode. The deployed RTX 4090 recovered
+  exact split-skip and physical-flow controls with bit-identical stages.
 
----
+## 1. Root cause
 
-## 1. The bug in 90 seconds
+Three repositories compose failure: `Coldcard/firmware`, `switck/libngu`, and
+`Coldcard/micropython`.
 
-Three public codebases compose the failure (per Wizardsardine's excellent
-writeup): `Coldcard/firmware` (seed flow), `switck/libngu` (crypto lib),
-`Coldcard/micropython` (the OS).
-
-```
+```text
 shared/seed.py:   seed = ngu.hash.sha256s(ngu.random.bytes(32))
-libngu random.c:  my_random_bytes():  chip = CHIP_TRNG_32(); chip ^= my_yasmarang()
-                  CHIP_TRNG_32() resolves to rng_get() at link time
-mpconfigboard.h:  #define MICROPY_HW_ENABLE_RNG (0)   // "We have our own version"
-ports/stm32/rng.c: with the flag 0, rng_get() = pyb_rng_yasmarang()  (software)
+shared/random.py: bytes = ngu.random.bytes
+libngu random.c:  chip = CHIP_TRNG_32(); chip ^= my_yasmarang()
+mpconfigboard.h:  MICROPY_HW_ENABLE_RNG = 0
+MicroPython:      rng_get() = deterministic Yasmarang fallback
 ```
 
-libngu's compile-time safeguard (`#ifndef MICROPY_HW_ENABLE_RNG → #error`)
-tested **existence, not value** — the macro exists with value 0, so the guard
-passed silently for five years. `rng_get()` became the deterministic Yasmarang
-PRNG, seeded once per boot from:
+Libngu tested whether `MICROPY_HW_ENABLE_RNG` was defined, not whether its
+value was nonzero. Build succeeded while libngu's global `rng_get()` resolved
+to fallback implementation.
+
+Fallback initializes once:
 
 ```c
 rtc_init_finalise();
@@ -54,195 +47,185 @@ n   = RTC->TR;
 d   = RTC->SSR;
 ```
 
-We confirmed this against the shipping binary, not just source. The official
-4.1.9 DFU (SHA-256 `f6fb19d9…e640e`, verified against the published hash)
-disassembles at `rng_get` (0x0803df94) to:
+Shipping Mk3 4.1.9 disassembly confirms SysTick, UID, RTC register reads, then
+Yasmarang transition. Independent Python replicas agree byte-for-byte with our
+Go, Metal, and CUDA ports.
 
-```
-ldr  r2, [r3, #0x18]     ; SysTick->VAL   (0xE000E018)
+## 2. Full candidate pipeline
 
-## 2. Reproducing the chain (and proving it four ways)
-
-The full candidate pipeline, as reconstructed from `vuln_rng.py` (DK27ss) and
-`poc_mk3_rng.py` (3z) — which we cross-validated byte-for-byte against each
-other:
-
-```
-(pad32, rtc_tr, rtc_ssr, skip)
-  chip = yasmarang(pad32, rtc_tr, rtc_ssr); advance chip by skip
-  mixer = yasmarang(0x0A8CE26F, 69, 233)    # fresh per boot
-  raw[8 words]: chip.next() ^ mixer.next()  (reject if chip==last, as on device)
-  entropy = SHA256(raw)                     # shared/seed.py
-  mnemonic = BIP39(entropy)                 # 24 words
+```text
+(pad, rtc_tr, rtc_ssr, chip_skip, mixer_skip)
+  chip  = Yasmarang(pad, rtc_tr, rtc_ssr)
+  mixer = Yasmarang(0x0A8CE26F, 69, 233)
+  advance chip and mixer independently
+  raw[8] = chip.next() XOR mixer.next()
+  entropy = SHA256(raw bytes)
+  mnemonic = BIP39(entropy)
   seed64 = PBKDF2-HMAC-SHA512(mnemonic, "mnemonic", 2048)
-  m/84'/0'/0'/0/i -> P2WPKH hash160 -> match vs target set
+  derive m/84'/0'/0'/0/index
+  compare P2WPKH HASH160 against every target
 ```
 
-Validation results (all in this repo, `artifacts/`):
+Validation ledger:
 
-| # | Proof | Result |
-|---|---|---|
-| 1 | Planted wallet (random state), recovered from address only — Python | 61 s, exact |
-| 2 | Same — Go CPU scanner | 140 s, bit-identical key |
-| 3 | Same — Apple M4 Metal GPU | bit-identical |
-| 4 | **Third-party artifact**: DK27ss's published demo address `bc1qk92z65wv…lpdj7h` | pad 482111261, skip 2, key recovered from the address alone |
-| 5 | BIP322 simple signature on the recovered third-party key | verifies offline |
-| 6 | Same planted target — CUDA on RTX 4090 | bit-identical |
+| Proof | Result |
+|---|---|
+| Planted address-only recovery, Python | exact |
+| Same planted target, Go | bit-identical |
+| Same planted target, Apple Metal | bit-identical |
+| Same planted target, CUDA/RTX 4090 | bit-identical |
+| Independently published demo address | key recovered; BIP322 verifies |
+| Split-skip Cartesian CUDA control | exact unequal chip/mixer skips |
+| Corrected first-boot CPU references | bit-identical across diverse vectors |
+| Deployed full-path first-boot GPU control | exact planted key from target search |
+| Real drained-address target | **not yet recovered** |
 
-Two implementation bugs found along the way are worth documenting, because
-both are the kind that silently eat GPU-weeks:
+Artifacts live under `artifacts/`. Synthetic material is clearly labeled and
+never held funds.
 
-- A RIPEMD-160 final-combine with the five IV constants **rotated by one slot**
-  (in a collaborator's GPU kernel) — every hash160 wrong, zero hits forever.
-- Our own CUDA host allocated the target buffer with
-  `vector<array<uchar,20>>::size()` — element count, not bytes — so the device
-  binary-searched 1/20th of a target list. The crypto chain was correct the
-  whole time; the match layer was searching garbage. A single-candidate debug
-  kernel (print every chain stage for a known state) isolated it in one run.
-  Also: an innocent-looking `#pragma unroll 16` on the SHA-512 message-schedule
-  ring miscompiled under `-O3` — correct results in one kernel, wrong in
-  another. Unrolling never changed semantics in the textbook; in ptxas output
-  it did.
+## 3. RTC correction
 
-## 3. The enumeration model — and where the naive one dies
+Initial analysis made a serious source-reading error: seeing
+`rtc_init_finalise()` before RTC reads, it inferred RTC started and `TR`
+represented session uptime. Pinned MicroPython source disproves this.
 
-The fallback state at seed generation is fully described by five values:
+- Mk3 has `MICROPY_HW_ENABLE_RTC=0`.
+- Startup does not call `rtc_init_start()`.
+- `rtc_init_finalise()` returns unless `rtc_init_start()` set its flag.
+- Clean power-on resets `RTC->TR` and `RTC->SSR` to zero; no LSE clock is
+  enabled to advance them.
 
-```
-pad  = UID32 ^ SysTick->VAL     (UID: wafer X/Y coordinates — structured)
-n    = RTC->TR                  (time, BCD)
-d    = RTC->SSR                 (sub-seconds, 0..255)
-skip = RNG draws before seed-gen (boot flow dependent)
-mixer_skip = whitener draws (same boot)
-```
+So `RTC=0/0` is supported for clean cold boot. Warm, retained, debug, or
+modified-device states can differ. Earlier zero-RTC sweeps missed because call
+history was incomplete, not because RTC zero was impossible.
 
-Our first fleet ran the naive hypothesis — `rtc = 0/0`, `skip ∈ [0,8)` —
-across 14× RTX 4090 (~2^35 candidates checked). Zero hits. The disassembly
-plus MicroPython's `rtc.c` explain why the window was dead *by construction*:
+## 4. Why one skip is wrong
+
+Libngu maintains another deterministic Yasmarang mixer. `random.bytes()` and
+`random_uint32()` advance chip and mixer one-to-one. `_rand_below()`, used by
+Fisher-Yates, differs:
 
 ```c
-// ports/stm32/rng.c, first rng_get() of the boot:
-rtc_init_finalise();            // -> rtc.c
-...
-// rtc.c: on first use the RTC is started and then:
-RTC_CalendarConfig();           // sets date 2015-01-01, **time 00:00:00**
+pt = my_yasmarang();
+pt ^= CHIP_TRNG_32();
+while ((pt & mask) >= mx) {
+    pt ^= my_yasmarang();       // mixer-only retry
+}
 ```
 
-The RTC is zeroed at boot and **counts session uptime**. At seed generation,
-`RTC->TR` holds the setup duration (typically minutes, in BCD), and
-`RTC->SSR` the sub-second (256 steps/s). Both are unknown per device, and the
-second is never zero in practice.
+Every shuffle step consumes exactly one chip word but possibly several mixer
+words. Correct state has `chip_skip` and `mixer_skip`.
 
-Corrected universal-sweep space, per hypothesis combination:
+Source-derived mandatory chip baselines:
 
+| Device/settings state | Chip baseline |
+|---|---:|
+| All 32 settings slots erased, Terms absent | 3134 |
+| Valid settings exist, Terms absent | 30 |
+| Terms already accepted | 0 |
+
+For erased storage: first load shuffles 32 slots (31 chip draws), writes three
+4 KiB noise slots (3072 draws), then Terms persistence shuffles 32 slots again
+(31 draws): `31 + 3072 + 31 = 3134`.
+
+Every physical keypad scan session shuffles four rows, adding three chip draws
+plus mixer-only rejections. Key timing determines session count. Optional USB,
+other settings saves, and alternate flows add more calls.
+
+This is why `3103/3161` artifact is synthetic: it proves scanner axes, but
+mandatory Terms save means 3103 is not full erased-flash wallet baseline.
+
+## 5. CUDA implementation and validation
+
+The kernel has two explicit modes:
+
+```text
+fixed-skip: pad × chip_skip × mixer_skip × address_index
+first-boot: pad × physical P/Q history × address_index
 ```
-2^32 (pad) × TR_range (~100–1800 s) × SSR (256) × skip_range (flow-dependent)
-≈ 10^15 – 10^17
-```
 
-Even a perfectly tuned GPU fleet does not touch that. The SSR factor deserves
-special note, because it is the one that looks removable: SysTick->VAL and
+First-boot mode replays the nvstore/noise/Terms/keypad operations and
+candidate-dependent mixer rejections inside each GPU thread. It also fixes the
+earlier target-buffer byte-count bug, an optimization-sensitive SHA-512
+unroll, final partial-batch/grid bounds, numeric overflows, conflicting flags,
+and private-buffer cleanup.
 
-## 4. So how is the attacker draining thousands of wallets?
+Validation used two layers:
 
-Our space analysis collides with the on-chain evidence: 2,321+ addresses
-drained in days (coldcard-watch), ~1,082 BTC reconstructed by independent
-chain forensics. For that to work, per-device recovery must be *cheap*, and
-our math says cheap requires collapsing the pad dimension — i.e., **knowing
-the device's UID**.
+1. The historical 18-candidate Cartesian control recovered exactly
+   `(pad=3547157718, chip=3103, mixer=3161)` and matched CPU raw bytes, entropy,
+   private key and HASH160.
+2. Two independent CPU first-boot references matched each other. The exact
+   deployed RTX 4090 binary matched a representative Q=22 candidate at every
+   stage, then recovered the exact planted key from a 100-pad target search.
 
-The UID is a poor secret by design (Wizardsardine): it encodes factory lot
-(ASCII), wafer number, and X/Y wafer coordinates — structured, not random.
-And the USB serial number exposes 6 of the 12 UID bytes to any host the
-device has ever enumerated on (the firmware's own comment calls it "probably
-public info"). Per 3z's serial analysis, even a full serial leaves ~5.9×10^8
-candidates for the seed word — not enough on its own. A *full* UID, though,
-shrinks the per-device space to roughly SysTick (80k) × TR-window × skip:
-minutes on a single GPU.
+The second layer is important: a debug candidate does not test target loading
+or hit emission; the tiny full-path search does.
 
-The only consistent reading of a mass sweep: **the attacker possesses exact
-UIDs at industrial scale** — factory programming logs (which necessarily read
-the UID at flash time), or production/order data from a large distributor.
-We found no public evidence of such a breach; we note simply that the math
-admits few alternatives. (An alternative worth flagging for completeness:
-the attacker may be exploiting a different affected surface entirely — Block
-enumerates Key Teleport, Web2FA and others that expose RNG-state oracles.)
+## 6. Measured search and result
 
-## 5. Feasibility ledger (measured)
+For a fixed physical history and derivation boundary, enumerating all `2^32`
+pad values is universal. UID and SysTick enter only as XOR, so multiplying them
+as independent spaces double-counts. If the device's actual 32-bit UID word is
+known, only the approximately 80,000 possible `UID32 XOR SysTick` pads need be
+tested—about 53,687 times fewer candidates.
 
-| Engine | Throughput | Notes |
-|---|---|---|
-| Python (10-core M4, OpenSSL PBKDF2) | ~9k cand/s | reference |
-| Go CPU (cached-pad C PBKDF2) | ~3k cand/s | wall = PBKDF2-SHA512×2048 |
-| Apple M4 Metal | ~9k cand/s | after stack-spill fixes |
-| RTX 4090 CUDA | ~140k cand/s | 255-reg kernel, 12% occupancy — headroom ~5–10× |
-| 14× 4090 fleet | ~1.7M cand/s | ≈ 2^32 pads × 3 skips in ~3 h (~$7) |
+The RTX 4090 measures approximately 290,000 source-faithful first-boot
+candidates/second at one address index: about four hours for one full pad pass.
+A sanitized snapshot contains 16,324,231,168 uniquely evidenced candidates
+across Q=18,20,22,24,26,28,30 at BIP84 external index 0—3.80078125 complete
+pad-pass equivalents—with no match among 2,311 targets. Q=24 has a
+separate documented 4,194,304-pad evidence gap.
 
-Rule of thumb: each full "2^32 × one hypothesis" pass costs single-digit
-dollars. The problem was never the price of a pass; it is that the number of
-hypotheses (TR × SSR × skip × uid) is the attacker's secret, not compute.
+Seven live workers continue those Q=18–30 checkpoints while the 4090 expands
+Q=22 to indexes 0–7, then spends remaining budget on Q=32/34. **No
+real-victim hit has been recovered as of this writeup.** A no-hit applies only
+to the exact target hash, physical history, RTC/settings state, derivation path,
+index range and pad interval. `SEARCH_STATUS.md` records every boundary and the
+next experiments if the funded run remains empty.
 
-## 6. What victims should actually do
-
-1. **Migrate now**, following Coinkite's advisory: fixed firmware (4.2.0 /
-   5.6.0 / 1.5.0Q), generate a *new* seed, move funds. Dice (≥50 rolls) and
-   strong passphrases are the only existing-seed mitigations; a weak
-   passphrase buys hours at best.
-2. **Do not wait for a white-hat recovery.** Without your device's UID
-   (plus tight boot-timing knowledge), brute-forcing your seed is
-   structurally infeasible — for us and for anyone else on public models.
-3. **Ignore every unsolicited "recovery service."** They cannot do it. The
-   same math that stops us stops them; your seed words are the only thing
-   they are actually after.
-4. If you were drained: record txids, addresses, device model, firmware
-   version, seed-creation circumstances; Coinkite offers incident summaries
-   for police/insurance reports.
-
-## 7. Reproduce everything
+## 7. Reproduce
 
 ```sh
-# Go CPU scanner (demo = recover a planted wallet end-to-end)
-cd scan && go build -o ccscan . && ./ccscan -mode demo -target <target.json>
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
 
-# CUDA sweep (validated on RTX 4090)
-cd gpu/cuda && nvcc -O3 -arch=sm_89 scan.cu -o cscan
-./cscan -t targets.txt -r <rtcTR> -s <rtcSSR> -B <skipBase> -k <skipN> -i <idxMax> -p <padStart> -e <padEnd>
+cd proof
+python -m unittest -v test_firstboot_reference.py test_bip322.py
 
-# BIP322 proof tool
-python3 proof/bip322.py selftest
-python3 proof/bip322.py sign <privkey_hex> <bc1q_address>
-python3 proof/bip322.py verify <address> <proof_b64> <message>
+cd ../scan && go test ./...
+
+cd ../gpu/cuda
+nvcc -std=c++14 -O3 -arch=sm_89 scan.cu -o cscan
+./cscan -t ../../targets/all_bc1q.txt -w ../../scan/bip39_english.txt \
+  -r 0 -s 0 -F 2 -A 22 -C 1 -i 1 \
+  -p 0 -e 4294967296 -b 4194304 -o hit_real_private.json
 ```
 
-All artifacts (planted + third-party recoveries, signatures) are in
-`artifacts/`; the full experiment history is in `EXPERIMENT_LOG.md`; the
-model analysis in `RESEARCH.md`.
+`-F` is the corrected physical-flow mode. Manual `-B/-k/-m/-K/-M` skip
+arguments are for fixed-state experiments and are intentionally rejected when
+they contradict first-boot mode.
 
-## 8. References
+## 8. Safety and victim guidance
 
-- Block Engineering: *Predictable RNG Fallback and 32-Bit Reseed in COLDCARD
-  Firmware* (2026-07-30)
-- Coinkite advisory (2026-07-30) + emergency firmware 4.2.0/5.6.0/1.5.0Q
-- Wizardsardine (Loaec et al.): *Critical Coldcard flaw* (2026-08-01)
-- 3z/coldcard-mk3-rng-disclosure — binary-verified Mk3 recon
-- DK27ss/ColdCard-38M-PoC — on-device-validated pipeline replica
-- coldcard-watch — drained-address tracker (2,321 entries)
-- Kelbie/coldcard-rng-postmortem — chain forensics (1,082 BTC, three waves)
+1. Upgrade to fixed firmware, generate a completely new seed, verify backup
+   and receive address, then migrate funds. Firmware update alone does not fix
+   existing affected seed.
+2. At least 50 independent private dice rolls or strong unique BIP39
+   passphrase materially changes risk; follow Coinkite's current advisory.
+3. Never provide seed words to unsolicited recovery services.
+4. Preserve addresses, transaction IDs, firmware version, and setup details if
+   reporting theft.
 
-*Legal scope: all research on public data and self-generated targets. No funds
-were ever moved; drained addresses are balance-zero by definition. If you
-recognize a still-funded vulnerable address, notify the owner — never sweep.*
+Legal scope: public data and self-generated/public demo targets only. No funds
+were moved. Drained targets were balance-zero; still-funded wallets must be
+notified, never swept.
 
-RTC->SSR both derive from the same instant, so in principle they are coupled.
-But exploiting the coupling requires separating `pad` back into `UID` and
-`SysTick` — which requires knowing the UID. For the device-agnostic attacker
-the 256 stands. We checked this carefully; it is not an oversight, it is
-structural.
+## References
 
-ldr.w r3, [r3, #0x590]   ; UID word       (0x1FFF7590)
-eors r3, r2              ; pad = UID ^ SysTick
-ldr  r2, [r3]            ; n = RTC->TR    (0x40002800)
-ldr  r3, [r3, #0x28]     ; d = RTC->SSR   (0x40002828)
-```
-
-followed by the Yasmarang transition — matching the C model bit-for-bit.
+- Coinkite: *Technical Deep Dive into the Entropy Issue* and Mk3 advisory
+- Block Engineering: *Predictable RNG Fallback and 32-Bit Reseed in COLDCARD Firmware*
+- 3z/coldcard-mk3-rng-disclosure — binary-verified firmware reconstruction
+- DK27ss/ColdCard-38M-PoC — pipeline and split-skip analysis
+- COLDCARD firmware tag `2023-06-26T1241-v4.1.9`

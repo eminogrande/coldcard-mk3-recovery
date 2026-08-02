@@ -7,4 +7,24 @@ gpu/metal/*.metallib
 goscan/goscan
 ckpt*.json
 *.log
+
+# Public-safe immutable validation/coverage evidence.
+!artifacts/cuda_firstboot_debug.log
+!artifacts/cuda_firstboot_validation.log
+!artifacts/public_logs/
+!artifacts/public_logs/*.log
+!artifacts/public_coverage_snapshot.json
+
+# Mutable live fleet state stays local. Publish sanitized snapshots instead.
+artifacts/cuda_physical_live_post*_checkpointed.log
+artifacts/cuda_physical_live_post*_checkpoint.json
+
+# Never track real recovered material or cloud-run private bundles.
+artifacts/*_private.json
+artifacts/hit_real*.json
+artifacts/HIT_FOUND.json
+artifacts/budget-run-*/
+**/control_private.json
+**/vast_api_key
+
 .DS_Store

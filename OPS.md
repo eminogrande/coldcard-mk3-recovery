@@ -1,136 +1,199 @@
-# Ops — sweep infrastructure & runbook
+# Operations runbook
 
-> **STATUS 2026-08-01 19:40 CEST: CPU fleet phase ENDED.** All Hetzner boxes
-> (s3,s4,s6,s7) and the M4 worker were shut down — CUDA (RTX 4090, other
-> contributor) is the faster path and continues on his side. Billing stopped;
-> final coverage checkpoints saved to `artifacts/coverage/`. Watchdog launchd
-> job unloaded. This file is now the **historical runbook** — how the fleet
-> was run and how to re-fire it if the hypothesis changes.
+**STATUS 2026-08-02: eight corrected first-boot Vast.ai GPU workers are live.
+Historical Hetzner/local fixed-skip workers are stopped. No real-victim hit
+exists as of this snapshot.**
 
-Operations side of the recovery sweep: who scans what, how the fleet is
-run, how spend is capped, how hits are caught. For proofs/targets/cost-per-
-engine see `RESULTS.md`. This file is the no-nonsense ops log.
+## Current production boundary
 
-## Sweep map (at shutdown, no duplication)
-
-Every chip-skip was assigned to exactly one worker. No two workers scanned
-the same (skip, pad) space.
-
-| chip-skip | worker | engine | rate | cost |
-|---|---|---|---|---|
-| 0–2 | RTX 4090 (vast.ai) | CUDA `gpu/cuda/scan.cu` | ~130–140k cand/s | ~$0.26/h (his budget) |
-| 3 | Hetzner `ccscan-s3` (CPX62) | Go `scan/ccscan` | ~13k cand/s | €0.208/h |
-| 4 | Hetzner `ccscan-s4` (CPX62) | Go `scan/ccscan` | ~11k cand/s | €0.208/h |
-| 5 | Apple M4 (local) | Go `scan/ccscan` | ~9.9k cand/s | €0 |
-| 6 | Hetzner `ccscan-s6` (CPX62) | Go `scan/ccscan` | ~11k cand/s | €0.208/h |
-| 7 | Hetzner `ccscan-s7` (CPX62) | Go `scan/ccscan` | ~11k cand/s | €0.208/h |
-
-Hypothesis everywhere: `rtc_tr=0 rtc_ssr=0 mixer_skip=0`, idx 0–7 (nidx 8),
-targets = P2WPKH single-sig only.
-
-### Targets files (differ intentionally)
-
-- `targets/all_bc1q.txt` — 2,311 addresses (2,298 coldcard-watch + 13 Fowler). Used by CUDA.
-- `targets/all_bech32.txt` — 2,316 = above **+ 5 coldcard-watch "notable" addresses** (incl. the ~562 BTC whale). Used by Hetzner fleet + Mac. Superset, open question whether the 5 are victim or attacker/destination addresses.
-
-Do NOT feed `targets/all.txt` to the scanner — it contains 23 legacy
-P2PKH/P2SH addresses that crash the bech32-only loader (`panic: bad target
-address`). Those 23 need BIP44/49 derivation (not implemented yet).
-
-## Hetzner fleet
-
-Cloud servers, hourly billing, **no monthly contract** (Hetzner Cloud;
-€0.2083/h per CPX62, €129.99/mo is only a ceiling). Delete server = billing
-stops same minute.
-
-Scripts in `deploy/`:
-
-| script | purpose |
-|---|---|
-| `hetzner-fire.sh [N]` | original sharded fleet launcher (CCX default) |
-| `fleet-fire.sh <skips...>` | one CPX62 per skip arg, builds + launches sweep |
-| `fleet-watch.sh` | watchdog: spend cap + hit detection (see below) |
-| `hetzner-collect.sh` | pull checkpoints/hits from boxes |
-| `hetzner-destroy.sh` | delete fleet, stop billing |
-
-SSH note: boxes reject auth if the local agent floods keys — all scripts use
-`ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes`. The Hetzner-side key is
-`ccscan-key` (fingerprint matches local `~/.ssh/id_ed25519.pub`).
-
-Per-box command (what runs on each):
-
-```
-./ccscan -mode sweep -targets ../ttargets/all_bech32.txt -rtc-tr 0 -rtc-ssr 0 \
-  -skip-lo S -skip-hi S+1 -mixer-skip 0 -nidx 8 -workers 16 \
-  -pad-start <checkpoint> -checkpoint /root/ckpt.json
+```text
+GPU fleet           2080 Ti/3060/3090/4060 Ti/4070/4070 Ti/4070S/4090
+aggregate rental    approximately $0.925/hour at snapshot
+reference build     CUDA 12.4, sm_89 on RTX 4090
+source mode         first-boot (-F), not manual skip Cartesian mode
+RTC                 TR=0, SSR=0 clean-cold-boot hypothesis
+pre-Terms sessions  P=2
+post-Terms sessions Q selected per pass
+path                m/84'/0'/0'/0/index
+active targets      targets/all_bc1q.txt (2,311 P2WPKH addresses)
+private output      remote mode 0600, ignored by Git
 ```
 
-`timeout 172800` (48h) wraps the process as a backstop; checkpoints every
-60s allow resume without losing progress.
+Do not present the Metal scanner as first-boot-capable. It implements the older
+fixed-skip model. The corrected physical-flow production kernel is CUDA
+`gpu/cuda/scan.cu`.
 
-## Watchdog (`deploy/fleet-watch.sh`)
+## Prerequisites
 
-Runs under **launchd** (`~/Library/LaunchAgents/com.nuri.ccscan-watch.plist`,
-`KeepAlive=true`, wrapped in `caffeinate -dims` so the Mac never sleeps while
-the fleet is billed). Every 5 min:
+- Use Python 3.11 for the Vast.ai CLI virtualenv. The host's older Xcode Python
+  fails on dependencies that use dataclass slots.
+- Obtain the Vast.ai API credential from 1Password at runtime. Never paste it
+  into this repository, shell scripts, logs, GitHub, or documentation.
+- On SSH, force the specifically registered key:
 
-1. Computes spend of running `app=ccscan` servers × €0.208/h.
-2. **Hit check**: pulls `/root/cc/scan/hit.json` from every box → on hit,
-   saves to `recovery/artifacts/hit_real_<ts>.json`, destroys the fleet,
-   macOS notification, exits.
-3. **Cap**: spend ≥ €45 → destroys fleet, notification, exits.
-
-Log: `/tmp/fleet-watch.log` (5-min entries). Hit line: `*** REAL HIT ***`.
-
-### Watchdog bugs found & fixed (important)
-
-- **PATH bug (critical):** launchd runs with `PATH=/usr/bin:/bin` — `hcloud`
-  (at `/opt/homebrew/bin/hcloud`) was not found → spend calc returned 0 →
-  **€45 cap was silently dead.** Fixed: script now exports
-  `PATH=/opt/homebrew/bin:...` at the top. Verify with `tail /tmp/fleet-watch.log`
-  — spend must be a real number, not €0.
-- **Spend undercount:** the cap only sees *currently running* servers.
-  Deleted servers' hours drop out of the calc. Real cumulative spend =
-  watchdog value + deleted boxes (≈ €2.0 so far). Acceptable for a €50 budget
-  but do not treat the watchdog number as the invoice total.
-- `pkill -f 'ccscan -mode'` on a box **kills the invoking SSH shell itself**
-  (its argv contains the pattern) → use `pkill -x ccscan`.
-
-## Cost tracking (real, CEST)
-
-| item | spend |
-|---|---|
-| Positive-control test box (CPX62, planted hit) | ≈ €0.21 |
-| Fleet skips 0–2 (3 boxes, ~2.6h, deleted — redundant with CUDA) | ≈ €1.62 |
-| Fleet skips 3,4,6,7 (4 boxes until shutdown) | ≈ €1.66 |
-| **Final total (CPU phase, ended 19:40)** | **≈ €3.5** |
-
-Budget: €50 total. Cap logic guards the running fleet; CUDA side is the
-other dev's separate vast.ai budget (~$0.26/h).
-
-## Reproduce a fleet box
-
-```
-hcloud server create --name ccscan-sX --type cpx62 --image ubuntu-24.04 \
-  --location fsn1 --ssh-key ccscan-key --label app=ccscan
-scp -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes /tmp/ccscan-src2.tar.gz root@IP:/root/
-ssh ... 'apt install golang-go libssl-dev; tar xzf ...; go build'
-ssh ... 'nohup timeout 172800 ./ccscan -mode sweep ... -skip-lo S -skip-hi S+1 ... &'
+```sh
+ssh -i ~/.ssh/id_ed25519 -o IdentitiesOnly=yes -p "$PORT" root@"$HOST"
 ```
 
-## Security
+Without `IdentitiesOnly=yes`, the 1Password/agent key set can trigger “too many
+authentication failures.”
 
-- The Hetzner API token was pasted into a chat during setup — **rotate it**
-  (Cloud Console → Security → API Tokens → delete + regenerate). It lives in
-  `~/.config/hcloud/cli.toml` (chmod 600, not committed).
-- Never commit `cli.toml`, `hit.json` with funded keys, or any private key.
-- Drained-address (balance 0) targets only; never broadcast from derived keys.
+## Build discipline
 
-## Open ops items
+Upload only the pinned public inputs:
 
-1. skip 0–2 overlap window: CUDA started at pad 0 while Hetzner 0–2 boxes
-   already had ~2% — accepted, CUDA is 10× faster and catches up in minutes.
-2. skip 0–2 done by CUDA → reassign or delete Hetzner 3,4 as CUDA extends.
-3. idx 8–15 + BIP44/49 legacy addresses: not covered anywhere yet.
-4. If €45 cap reached with no hit → stop, do not blind re-fire; reassess
-   hypothesis (rtc≠0 windows, skip order, idx range).
+```text
+gpu/cuda/scan.cu
+scan/bip39_english.txt
+targets/all_bc1q.txt
+proof/firstboot_reference.py
+```
+
+Build on the GPU host:
+
+```sh
+nvcc -std=c++14 -O3 -arch=sm_89 scan.cu -o cscan
+```
+
+This translation unit can take roughly 11 minutes to compile. An SSH timeout
+does not prove `nvcc` stopped. Before retrying, inspect `nvcc`, `cicc`, `ptxas`,
+and `cudafe`; kill duplicate builds and leave one clean compiler process.
+
+Record hashes before scanning:
+
+```sh
+sha256sum scan.cu cscan bip39_english.txt all_bc1q.txt
+```
+
+Current pinned values are in `SEARCH_STATUS.md`.
+
+## Mandatory validation gate
+
+Never spend the production budget after a source/compiler/target change until
+all three gates pass:
+
+1. CPU reference and independent CPU flow agree on raw RNG bytes, entropy,
+   chip/mixer draw counts, HASH160 and address.
+2. The exact deployed CUDA debug candidate agrees at every stage.
+3. The exact deployed scanner finds one expected planted address in a tiny pad
+   interval and writes private output mode `0600`.
+
+A debug-vector match alone does not test target loading or hit emission. The
+small full-path target search is mandatory.
+
+## Production command
+
+For one source-faithful first-boot history:
+
+```sh
+./cscan \
+  -t all_bc1q.txt -w bip39_english.txt \
+  -r 0 -s 0 \
+  -F 2 -A "$Q" -C 1 \
+  -i "$INDEX_COUNT" \
+  -p "$PAD_START" -e 4294967296 \
+  -b 4194304 \
+  -o "hit_real_q${Q}_i${INDEX_COUNT}_private.json"
+```
+
+Semantics:
+
+- pad interval is half-open `[PAD_START, 4294967296)`;
+- `-F 2` enables the physical first-boot flow with P=2;
+- `-A Q -C 1` tests exactly one post-Terms session history;
+- `-i N` derives external receive indexes `[0,N)`;
+- `-r/-s 0` pins the clean cold-boot RTC hypothesis;
+- output contains private material only on hit.
+
+Do not add manual chip/mixer skip ranges to a first-boot command. Current code
+rejects contradictory combinations.
+
+## Checkpoint/resume rules
+
+A checkpoint is valid only when all of these match:
+
+- `scan.cu` SHA-256;
+- BIP39 wordlist SHA-256;
+- target-file SHA-256;
+- RTC, P, Q, path and index count;
+- log contains the exact candidate interval and an exhausted/no-hit terminal
+  line;
+- the next pad equals the end of the completed half-open interval.
+
+Never infer completion from elapsed time, an SSH disconnect, or a missing
+process. Never advance a checkpoint on CUDA error, timeout, OOM, provider stop,
+or absent terminal counter.
+
+Seven current shard workers reuse local mutable checkpoint files that are
+Git-ignored. The public immutable ledger is
+`artifacts/public_coverage_snapshot.json`, with sanitized audit summaries under
+`artifacts/public_logs/`. The documentation audit stopped a duplicate 4090
+Q=22/index-0 pass after all public hashes matched and reassigned that GPU to
+Q=22 indexes 0–7. Q=24 has a documented `[0,4,194,304)` evidence gap that must
+be backfilled before a full-coverage claim.
+
+## Monitoring
+
+Live health check:
+
+```sh
+nvidia-smi --query-gpu=utilization.gpu,power.draw,power.limit,temperature.gpu \
+  --format=csv,noheader
+pgrep -af cscan
+tail -3 /root/sweep_*.log
+```
+
+Healthy index-0 first-boot rate on the current 4090 is approximately 0.29
+million candidates/second at 100% utilization. Low VRAM utilization is normal:
+this kernel is compute-bound.
+
+The local script `~/.hermes/scripts/coldcard-budget-watch.sh` runs every five
+minutes outside this repository. It emits nothing during healthy operation. It
+detects local hit files from every checkpoint worker and the remote 4090 hit
+marker. It reports and destroys all running rentals on:
+
+- a nonempty `/root/HIT_FOUND.json`;
+- credit at or below $0.40;
+- all workers stopped;
+- provider/instance stop or controller failure.
+
+The controller and watchdog intentionally stay outside Git because they contain
+live connection/contract metadata. This document records behavior, not secrets.
+
+## Hit handling
+
+On a hit:
+
+1. Stop `cscan` and the controller immediately; do not continue spending.
+2. Copy the hit via SCP into a local directory mode `0700`; keep the file mode
+   `0600` and confirm its SHA-256.
+3. Independently derive the public key/HASH160/address from the private key and
+   confirm it equals both the hit and target.
+4. Sign the fixed inert research message using `proof/bip322.py`, then verify
+   with the local verifier and a second implementation plus negative controls.
+5. Destroy the GPU only after hit/log collection is verified. Commit only the
+   public address, fixed message, proof, hashes, coverage and reproduction
+   metadata—never mnemonic/private key material.
+
+Never create or broadcast a Bitcoin transaction.
+
+## No-hit shutdown
+
+When budget or planned coverage ends:
+
+1. collect every sweep log, controller log, source/binary hashes and final Vast
+   account/instance summary;
+2. calculate exact completed half-open intervals—do not count a partial batch as
+   complete;
+3. destroy the instance and verify it no longer appears as running;
+4. update `RESULTS.md`, `EXPERIMENT_LOG.md` and `SEARCH_STATUS.md` with terminal
+   coverage/cost;
+5. choose the next experiment from the no-hit decision tree instead of rerunning
+   an exhausted range.
+
+## Historical fleet
+
+Earlier local, Hetzner and Vast.ai workers tested fixed skip hypotheses such as
+chip 0–8/mixer 0. They are stopped. Their logs/checkpoints remain useful only as
+exact negative fixed-state evidence and implementation controls; they are not
+fresh-device first-wallet coverage.

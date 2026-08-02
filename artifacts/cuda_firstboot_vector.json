@@ -1,0 +1,14 @@
+{
+  "model": "synthetic Mk3 split-skip positive control; no funds received",
+  "pad": 3547157718,
+  "rtc_tr": 0,
+  "rtc_ssr": 0,
+  "chip_skip": 3103,
+  "mixer_skip": 3161,
+  "idx": 0,
+  "raw": "3b6f48330287ff099bb106e42719dc3c663adaf24d2b5396a029258bf9035cc2",
+  "entropy": "68d82000274abe85403e49bf21d417f5b17f0bdd1e677731e3e0006903277d9a",
+  "priv": "aa80bd61324588b81c35a6bcb0a487af27afcc90db07046802047de55cbf6734",
+  "h160": "5678175570248502629f3239414ac5780b7754cf",
+  "address": "bc1q2eupw4tsyjzsyc5lxgu5zjk90q9hw4x03wajhl"
+}

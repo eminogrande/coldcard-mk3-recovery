@@ -1,0 +1,16 @@
+{
+  "model": "synthetic Mk3 physical first-boot flow positive control; no funds received",
+  "pad": 3547144342,
+  "rtc_tr": 0,
+  "rtc_ssr": 0,
+  "pre_terms_keypad_sessions": 2,
+  "post_terms_keypad_sessions": 17,
+  "chip_skip": 3191,
+  "mixer_skip": 3487,
+  "idx": 0,
+  "raw": "af6d3f00a7152c99e4f4953aa3f0f404932f643ef842b8942e89e68d61089a2b",
+  "entropy": "407993c6f9053754e0c25293e963fca27f821257da32426ab4bcc80383b76399",
+  "priv": "1e5f1626daea69bd922bafc388577dc38ea5f00c482146d1f7c755a8bdd68839",
+  "h160": "024efe9c283ec41a0082ee00c8bbd25d0b40c92f",
+  "address": "bc1qqf80a8pg8mzp5qyzacqv3w7jt595pjf0zzznew"
+}

@@ -48,7 +48,16 @@ def archive_proof(hit_path: Path, address: str, output_path: Path) -> dict:
         "source_hit": hit_path.name,
         "recovery": {
             key: hit[key]
-            for key in ("pad", "skip", "idx", "h160")
+            for key in (
+                "pad",
+                "skip",
+                "chip_skip",
+                "mixer_skip",
+                "pre_terms_keypad_sessions",
+                "post_terms_keypad_sessions",
+                "idx",
+                "h160",
+            )
             if key in hit
         },
     }

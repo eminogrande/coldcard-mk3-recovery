@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/hex"
 	"testing"
 )
 
@@ -11,6 +12,27 @@ func TestPBKDF2Equivalence(t *testing.T) {
 	b := pbkdf2_2048_go(pw, []byte("mnemonic"))
 	if !bytes.Equal(a, b) {
 		t.Fatalf("cgo/openssl PBKDF2 != pure-Go PBKDF2")
+	}
+}
+
+func TestPhysicalFirstBootReferenceVector(t *testing.T) {
+	mix := mixerWords(3487)
+	entropy, ok := seedEntropy(3547144342, 0, 0, 3191, &mix)
+	if !ok {
+		t.Fatal("reference candidate failed RNG continuous test")
+	}
+	want, err := hex.DecodeString("407993c6f9053754e0c25293e963fca27f821257da32426ab4bcc80383b76399")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(entropy[:], want) {
+		t.Fatalf("physical-flow reference entropy mismatch: got %x want %x", entropy, want)
+	}
+	mnemonic := entropyToMnemonic(entropy)
+	seed := pbkdf2_2048([]byte(mnemonic), []byte("mnemonic"))
+	addresses, _ := candidateAddresses(seed, 1)
+	if len(addresses) != 1 || addresses[0] != "bc1qqf80a8pg8mzp5qyzacqv3w7jt595pjf0zzznew" {
+		t.Fatalf("physical-flow reference address mismatch: got %v", addresses)
 	}
 }
 

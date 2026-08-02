@@ -1,0 +1,7 @@
+[cscan] 1 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 chip=[3102,3105) mixer=independent idxMax=1 pads=2 candidates=18
+[cscan] mixer=[3160,3163) batch=256 threads
+[cscan] candidates=18/18  0.00 Mcand/s  batch 0.1s  eta 0.0h
+[HIT] pad=3547157718 chipSkip=3103 mixerSkip=3161 idx=0 priv=aa80bd61324588b81c35a6bcb0a487af27afcc90db07046802047de55cbf6734 h160=5678175570248502629f3239414ac5780b7754cf
+[cscan] 1 hit(s) -> hits.json

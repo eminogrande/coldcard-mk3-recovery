@@ -33,20 +33,70 @@ def hash160(b):
     return hashlib.new("ripemd160", hashlib.sha256(b).digest()).digest()
 
 
+def bech32_polymod(values):
+    generators = (0x3B6A57B2, 0x26508E6D, 0x1EA119FA, 0x3D4233DD, 0x2A1462B3)
+    checksum = 1
+    for value in values:
+        top = checksum >> 25
+        checksum = ((checksum & 0x1FFFFFF) << 5) ^ value
+        for index, generator in enumerate(generators):
+            if (top >> index) & 1:
+                checksum ^= generator
+    return checksum
+
+
+def bech32_hrp_expand(hrp):
+    return [ord(char) >> 5 for char in hrp] + [0] + [ord(char) & 31 for char in hrp]
+
+
+def convertbits(data, frombits, tobits, pad=True):
+    accumulator, bits, output = 0, 0, []
+    max_value = (1 << tobits) - 1
+    for value in data:
+        if value < 0 or value >> frombits:
+            raise ValueError("invalid convertbits value")
+        accumulator = (accumulator << frombits) | value
+        bits += frombits
+        while bits >= tobits:
+            bits -= tobits
+            output.append((accumulator >> bits) & max_value)
+    if pad:
+        if bits:
+            output.append((accumulator << (tobits - bits)) & max_value)
+    elif bits >= frombits or ((accumulator << (tobits - bits)) & max_value):
+        raise ValueError("invalid witness-program padding")
+    return output
+
+
+def p2wpkh_address(program):
+    if len(program) != 20:
+        raise ValueError("only p2wpkh supported")
+    hrp = "bc"
+    data = [0] + convertbits(program, 8, 5)
+    checksum_value = bech32_polymod(bech32_hrp_expand(hrp) + data + [0] * 6) ^ 1
+    checksum = [(checksum_value >> (5 * (5 - index))) & 31 for index in range(6)]
+    return hrp + "1" + "".join(CHARSET[value] for value in data + checksum)
+
+
 def bech32_decode_prog(address):
-    _, _, data = address.rpartition("1")
-    vals = [CHARSET.index(c) for c in data]
-    assert vals[0] == 0, "only witness v0 supported"
-    prog5 = vals[1:-6]
-    acc, bits, out = 0, 0, bytearray()
-    for v in prog5:
-        acc = (acc << 5) | v
-        bits += 5
-        while bits >= 8:
-            bits -= 8
-            out.append((acc >> bits) & 0xFF)
-    assert len(out) == 20, "only p2wpkh supported"
-    return bytes(out)
+    if address.lower() != address and address.upper() != address:
+        raise ValueError("mixed case bech32 address")
+    address = address.lower()
+    hrp, separator, data = address.rpartition("1")
+    if separator != "1" or hrp != "bc" or len(data) < 7:
+        raise ValueError("only bc1 mainnet addresses supported")
+    try:
+        values = [CHARSET.index(char) for char in data]
+    except ValueError as error:
+        raise ValueError("invalid bech32 character") from error
+    if bech32_polymod(bech32_hrp_expand(hrp) + values) != 1:
+        raise ValueError("invalid bech32 checksum")
+    if values[0] != 0:
+        raise ValueError("only witness v0 supported")
+    program = bytes(convertbits(values[1:-6], 5, 8, pad=False))
+    if len(program) != 20:
+        raise ValueError("only p2wpkh supported")
+    return program
 
 
 def ser_tx(version, vin, vout, locktime, witness=None):
@@ -137,35 +187,7 @@ def selftest():
     priv = PrivateKey(os.urandom(32))
     pub = priv.public_key.format(compressed=True)
     prog = hash160(pub)
-
-    def convertbits(data, frombits, tobits, pad=True):
-        acc, bits, ret = 0, 0, []
-        maxv = (1 << tobits) - 1
-        for value in data:
-            acc = (acc << frombits) | value
-            bits += frombits
-            while bits >= tobits:
-                bits -= tobits
-                ret.append((acc >> bits) & maxv)
-        if pad and bits:
-            ret.append((acc << (tobits - bits)) & maxv)
-        return ret
-
-    def polymod(values):
-        gen = (0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3)
-        chk = 1
-        for v in values:
-            top = chk >> 25
-            chk = ((chk & 0x1FFFFFF) << 5) ^ v
-            for i, g in enumerate(gen):
-                if (top >> i) & 1:
-                    chk ^= g
-        return chk
-
-    data = [0] + convertbits(prog, 8, 5)
-    values = [ord(x) >> 5 for x in "bc"] + [0] + [ord(x) & 31 for x in "bc"] + data
-    pm = polymod(values + [0] * 6) ^ 1
-    addr = "bc1" + "".join(CHARSET[d] for d in data + [(pm >> 5 * (5 - i)) & 31 for i in range(6)])
+    addr = p2wpkh_address(prog)
     proof = sign(priv.secret.hex(), addr, PROOF_MSG)
     assert verify(addr, proof, PROOF_MSG), "valid proof rejected"
     assert not verify(addr, proof, "wrong message"), "forged message accepted"
