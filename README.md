@@ -19,16 +19,17 @@ fallback instead of the hardware TRNG. Seed = deterministic function of
 | BIP322 offline proof of key control (sign + verify tool) | done, self-tested |
 | Third-party demo address recovery + BIP322 proof | done (`artifacts/`) |
 | CUDA port validated on RTX 4090 (vast.ai) | done (2 bugs fixed: buffer size, pragma-unroll miscompile) |
-| Real-victim target set (2,311 bc1q + 5 notables = 2,316) | done |
-| **CPU sweep, rtc 0/0, skip 0–7 (Hetzner fleet + M4)** | **done — no hit**, ~1.4B candidates, coverage record `artifacts/coverage/` |
-| **Real-victim GPU sweep (CUDA, rtc 0/0, skip 0–2)** | **running on rented 4090** (other contributor) |
-| Multi-GPU scaling (pad/skip sharding via `-e`/`-B`) | next |
+| Real-victim target set (2,311 bc1q + 16 Mk4 duress) | done |
+| Fleet sweeps rtc 0/0, skip 0–8 (14× 4090 + CPU) | **done — no hit; window structurally dead** |
+| **RTC model correction (rtc.c: TR = session uptime)** | **done — see RESEARCH.md** |
+| Universal enumeration feasibility | **infeasible (~1e15+), needs UID priors — see BLOG.md §3–4** |
 | BIP44/49 derivation for the 23 non-segwit targets | todo |
+| Mk4/Q/Mk5 reseed model (32-bit whitener reseed) | todo |
 
-**No real-victim key recovered yet.** Every recovered key so far is a
-synthetic planted demo or a third-party published demo address. The live
-sweep tests whether any of the 2,316 drained wallets falls in the
-rtc 0/0 hypothesis window.
+**All compute stopped; all rented instances destroyed.**
+**No real-victim key recovered.** Recovered keys so far: synthetic planted
+demos + one third-party published demo address. The naive sweep model is
+disproven; the corrected analysis lives in `RESEARCH.md` and `BLOG.md`.
 
 See `RESULTS.md` for the full proof table, bugs found, and cost math.
 See `OPS.md` for the sweep infrastructure/runbook (Hetzner fleet, watchdog,
