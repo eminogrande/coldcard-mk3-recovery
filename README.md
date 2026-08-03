@@ -1,37 +1,36 @@
-# COLDCARD Mk2/Mk3 weak-RNG key-recovery research
+# COLDCARD Mk3 fallback-RNG recovery research
 
-Independent reproduction of the July 2026 COLDCARD entropy failure affecting
-Mk2/Mk3 seeds created on firmware 4.0.1–4.1.9. A link-time integration mistake
-wired wallet seed generation to MicroPython's deterministic Yasmarang fallback
-instead of the STM32 hardware TRNG.
+Reproducible research into whether the predictable MicroPython fallback RNG on vulnerable COLDCARD Mk3 firmware can recover any address in a public on-chain corpus.
 
-**Current state (2026-08-02): the source-faithful first-boot GPU search is
-running against 2,311 drained P2WPKH addresses. No real-victim hit has been
-recovered as of this commit.**
+> **Final frozen result — 2026-08-03:** no corpus hit. Zero GPU rentals remain. The strict public ledger contains **35,597,058,048 unique candidate-address derivations**. This is a negative result for the exact combinations in the ledger, not proof that the vulnerability was harmless or that every listed address is unrelated.
 
-Start here:
+## What this repository establishes
 
-- [`HANDOFF.md`](HANDOFF.md) — clone, validate, avoid duplicate ranges, and pick
-  up the highest-value next task;
-- [`SEARCH_STATUS.md`](SEARCH_STATUS.md) — exact assumptions, verified negative
-  coverage, active plan, and what to do if every funded pass returns no hit;
-- [`BLOG_POST.md`](BLOG_POST.md) — plain-language story for a general reader;
-- [`BLOG.md`](BLOG.md) — technical reconstruction and validation ledger;
-- [`RESEARCH.md`](RESEARCH.md) — source-derived model and corrections;
-- [`RESULTS.md`](RESULTS.md) — evidence table and measured results;
-- [`OPS.md`](OPS.md) — historical and current compute runbook.
+| Claim | Status |
+|---|---|
+| The vulnerable fallback RNG state is predictable under fixed hardware/RTC assumptions | Verified against pinned MicroPython source and independent reports |
+| The corrected fresh-device call history can be reproduced independently | Verified by two CPU implementations and exact test vectors |
+| CPU and deployed CUDA agreed on RNG, seed, BIP32, and address internals | Verified before every production scan |
+| Planted external-path targets can be recovered end to end | Verified on production CUDA binaries |
+| Official BIP84 external and change vectors derive correctly | Verified by local tests |
+| A real address in the 2,311-address corpus was recovered | **No** |
+| Every corpus address came from weak COLDCARD entropy | **Unknown; upstream explicitly does not claim this** |
+| The new disjoint external/change path scanner compiles and passes on NVIDIA | Pending the next funded GPU validation |
 
-## What is confirmed
+## Goal
 
-```text
-shared/seed.py:  random.bytes(32) → SHA-256 → BIP39 entropy
-shared/random.py: bytes = ngu.random.bytes
-libngu:           rng_get() XOR fixed-state Yasmarang mixer
-Mk3 build:        MICROPY_HW_ENABLE_RNG = 0
-linked rng_get(): MicroPython deterministic Yasmarang fallback
-```
+The project tests a bounded recovery hypothesis:
 
-The fallback initializes from:
+1. Reproduce the fallback RNG and source-reachable first-boot draw history.
+2. Derive BIP39 seed candidates and BIP84 account-0 addresses.
+3. Match them against 2,311 public `bc1q` candidates assembled from [`bnt21/coldcard-watch`](https://github.com/bnt21/coldcard-watch).
+4. Stop immediately on a match and keep any recovered secret private.
+
+The target corpus is a lead, not ground truth. Its upstream maintainer states that the listed addresses have **not** been proven to use weak seeds and that not every observed sweep is necessarily theft. No numeric hit probability is defensible from the corpus alone.
+
+## Vulnerability model
+
+Affected COLDCARD firmware could fall back from the STM32 hardware RNG to MicroPython's Yasmarang PRNG. In the pinned source, initialization is determined by three 32-bit words:
 
 ```text
 pad = UID_low32 XOR SysTick->VAL
@@ -39,143 +38,212 @@ n   = RTC->TR
 d   = RTC->SSR
 ```
 
-For the clean cold-boot model, the Mk3 RTC is not initialized and the registers
-remain `0/0`. UID and SysTick collapse into one 32-bit `pad`, so one
-`pad=[0,2^32)` pass covers all UID/timer preimages under those conditions. No
-per-device UID is needed for that pass.
+A complete sweep over all `2^32` pad values therefore removes the need to know the device UID or exact SysTick value **for one fixed pair of RTC words and one fixed call history**. It does not cover other RTC values or other histories.
 
-### Is knowing UID useful?
+For the modeled clean first boot:
 
-**Yes—very useful, but not required.** A full `2^32` pad sweep is complete
-without UID. If the 32-bit UID word read by the firmware is known, the Mk3's
-80 MHz/1 kHz SysTick limits the timer side to approximately 80,000 values. The
-candidate pad set then shrinks to `{UID32 XOR t | 0 <= t < 80000}`: about
-**53,687× fewer pad candidates**.
+```text
+chip draws before seed bytes = 31 + 3072 + 3P + 31 + 3Q
+                             = 3134 + 3(P + Q)
+```
 
-UID does not reveal RTC state, setup/keypad call history, derivation path,
-passphrase or dice use. See [`HANDOFF.md`](HANDOFF.md) for the proposed CUDA
-pad-list implementation and the other metadata needed to turn UID into a much
-smaller useful search.
+- `P` is the number of pre-Terms keypad scanning sessions.
+- `Q` is the number of post-Terms keypad scanning sessions.
+- Pad-dependent rejection draws advance only the fixed mixer stream.
+- The searched baseline fixes `P=2`, `RTC_TR=0`, and `RTC_SSR=0`.
 
-## Why the original two-day search did not hit
+`proof/firstboot_flow.py` directly models this flow. `proof/firstboot_reference.py` is an independent implementation used to detect shared mistakes.
 
-The key pipeline was correct; its call-history hypothesis was not.
+## Strict frozen result
 
-The historical fleet scanned `chip_skip=0..8` with `mixer_skip=0`. A wallet
-created on a freshly erased device consumes approximately 3,134 chip words
-before seed generation: initial nvstore shuffle (31), three 4 KiB noise writes
-(3,072), and the Terms/settings-save shuffle (31), plus keypad-session draws.
-The old scan was therefore thousands of calls too early.
+The canonical machine-readable result is [`artifacts/final_coverage_2026-08-03.json`](artifacts/final_coverage_2026-08-03.json).
 
-Libngu `_rand_below()` makes this subtler: rejections advance only its fixed
-mixer stream. The correct mixer offset is pad-dependent. Current CUDA
-first-boot mode replays the actual source flow per candidate instead of guessing
-a fixed pair of skips.
+| Post-Terms `Q` | BIP84 chain/index | Strict pad intervals | Unique derivations |
+|---:|---|---|---:|
+| 18 | external `/0/0` | `[0,3690987520)`, `[3724541952,2^32)` | 4,261,412,864 |
+| 20 | external `/0/0` | `[0,1073741824)`, `[1107296256,3590324224)` | 3,556,769,792 |
+| 22 | external `/0/0` | full `2^32` | 4,294,967,296 |
+| 24 | external `/0/0` | `[4194304,2^32)` | 4,290,772,992 |
+| 26 | external `/0/0` | full `2^32` | 4,294,967,296 |
+| 28 | external `/0/0` | full `2^32` | 4,294,967,296 |
+| 30 | external `/0/0` | `[0,3556769792)` | 3,556,769,792 |
+| 28 | external `/0/1..7` | `[0,1006632960)` | 7,046,430,720 |
+| **Total** |  |  | **35,597,058,048** |
 
-## Evidence ladder
+That equals **8.2880859375 full-pad equivalents** or approximately **35.05 bits** of unique `(Q,pad,chain,index)` derivations.
 
-| Proof | Result |
+### Why the public total is lower than operational counters
+
+The repository once observed approximately 88.75 billion combinations across live checkpoints. The strict total excludes work whose complete raw transcript was lost or ambiguous:
+
+- Three short-lived multi-index worker logs were not retained.
+- One Q=18 shard has interleaved duplicate-controller output.
+- One Q=20 checkpoint advanced after only partial scanner stdout.
+- The first 4,194,304 Q=24 pads lack retained unambiguous evidence.
+- Every partial shard at shutdown is excluded.
+
+This is deliberate. A checkpoint or session recollection is not publication-grade proof.
+
+## Why there was no hit
+
+The scanner's positive controls worked, so the result primarily weakens the **tested assumptions**. A corpus address may instead use:
+
+| Untested or incomplete dimension | Consequence |
 |---|---|
-| Planted address-only recovery on Python and Go | exact |
-| Same planted target on Apple Metal and CUDA | bit-identical |
-| Independently published DK27ss demo address | recovered; inert BIP322 verifies |
-| Corrected first-boot flow in two CPU references | bit-identical across test vectors |
-| Deployed RTX 4090 stage comparison | raw bytes, entropy, key, and HASH160 equal CPU reference |
-| Live 100-pad first-boot positive control | exactly one expected key recovered |
-| Real drained-address match | **not yet observed** |
+| BIP84 change chain or a higher address index | Correct seed, wrong derived address |
+| Another account, BIP44/BIP49, or a custom path | Correct seed family, wrong path |
+| Different keypad, PIN, menu, USB, reset, or setup history | Wrong RNG call count/order |
+| Non-zero RTC words or warm-reset state | Different fallback state |
+| User passphrase or dice entropy | Outside this practical brute-force model |
 
-A demo hit proves the pipeline. Only a real address match followed by an
-independently verified inert BIP322 signature proves control of a listed real
-key.
+The simplest explanation may be that no corpus address was generated by the vulnerable flow at all.
 
-## First-boot model
+## Reproduce locally
+
+Python 3.11 is recommended.
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -W error::ResourceWarning -m unittest discover -s proof -p 'test_*.py' -v
+(cd scan && go test ./...)
+python deploy/build_final_queue.py
+python deploy/validate_public_evidence.py
+```
+
+Expected results include `Ran 11 tests ... OK`, `QUEUE_OK jobs=1153 remaining=1510591168512`, and `PUBLIC_EVIDENCE_OK strict=35597058048 jobs=1153 remaining=1510591168512`. The Go build currently emits OpenSSL 3 SHA-512 deprecation warnings but passes.
+
+Check the representative corrected first-boot vector:
+
+```bash
+python proof/firstboot_flow.py 3547157718 2 22
+```
+
+Expected core values:
 
 ```text
-initial shuffle(32)
-48 × random.bytes(256)          # three 4 KiB noise slots
-P × keypad shuffle(4)           # before Terms save
-Terms/settings shuffle(32)
-Q × keypad shuffle(4)           # before New Wallet
-random.bytes(32) → SHA-256 → BIP39 → BIP84 → P2WPKH
+chip_skip=3206
+mixer_skip=3514
+raw prefix=8e1d0981
+entropy prefix=da85ce09
+hash160=74f34da837a78231dd3bd6ccc983638570454cdb
 ```
+
+## CUDA scanner
+
+Compile natively on the selected NVIDIA worker:
+
+```bash
+nvcc -std=c++14 -O3 -arch=sm_89 gpu/cuda/scan.cu -o gpu/cuda/cscan
+bash deploy/validate_cuda_path_ranges.sh gpu/cuda/cscan
+```
+
+The validation script must print:
 
 ```text
-chip_skip = 3134 + 3 × (P + Q)
-mixer_skip = chip_skip + candidate-dependent rejection draws
+CUDA_PATH_RANGE_CONTROL_OK hits=4 mode=600
 ```
 
-The standard fully separated first-PIN path gives
-`Q = 2 × total_PIN_digits + 10`, or Q=18,20,…34 for 4–12 total digits. Fast
-physical keypresses can merge scan sessions, so those nine even values are
-high-priority histories, not an exhaustive set.
+It verifies the exact RNG vector plus planted BIP84 paths at external indexes 8 and 19 and change indexes 0 and 19. Production scanning must not start unless this gate passes.
 
-## Reproduce the validation
+### Path selection
 
-```sh
-python3 -m venv .venv
-. .venv/bin/activate
-pip install -r requirements.txt
+Legacy behavior remains:
 
-cd proof
-python -m unittest -v test_firstboot_reference.py test_bip322.py
-
-cd ../scan
-go test ./...
-
-cd ../gpu/cuda
-nvcc -std=c++14 -O3 -arch=sm_89 scan.cu -o cscan
+```text
+-i N  == external chain indexes [0,N)
 ```
 
-Synthetic first-boot reference:
+Disjoint ranges avoid repeating already-covered indexes:
 
-```sh
-python proof/firstboot_reference.py \
-  --pad 0xD36D2096 --pre-terms-sessions 2 --post-terms-sessions 17 \
-  --index 0 --output control_private.json --target-output control_target.txt
+```bash
+-P 0:8:12 -P 1:0:20
 ```
 
-Source-faithful CUDA search (Q=22, index 0, full pad):
+That means external indexes 8–19 and change indexes 0–19. `-i` and `-P` cannot be combined; overlapping `-P` ranges are rejected. Hit JSON records the absolute `chain` and `idx` and is created with mode `0600`.
 
-```sh
-./gpu/cuda/cscan \
-  -t targets/all_bc1q.txt -w scan/bip39_english.txt \
-  -r 0 -s 0 -F 2 -A 22 -C 1 -i 1 \
-  -p 0 -e 4294967296 -b 4194304 -o hit_real_private.json
+## Highest-probability final run after top-up
+
+The final bounded matrix is:
+
+| Dimension | Values |
+|---|---|
+| RTC | `TR=0`, `SSR=0` |
+| Pre-Terms sessions | `P=2` |
+| Post-Terms sessions | `Q=18,20,22,24,26,28,30,32,34` |
+| BIP84 path | account 0, external and change chains |
+| Address indexes | `0..19` |
+| Pad | full `0..2^32-1` minus strict prior coverage |
+
+Full size: **1,546,188,226,560 derivations (`2^40.49`)**. Strict remaining work: **1,510,591,168,512 derivations**, or **351.7119140625 pad equivalents**.
+
+This matrix is chosen because path expansion is bounded by standard wallet discovery practice and is better supported than arbitrary RTC expansion. Its numerical proximity to Coinkite's preliminary “about 40 effective bits” estimate does **not** establish that Coinkite used these same dimensions.
+
+Execution order after funding:
+
+1. Rent one NVIDIA worker and compile natively.
+2. Pass `deploy/validate_cuda_path_ranges.sh` without exceptions.
+3. Benchmark one 33,554,432-pad shard before estimating fleet cost.
+4. Generate only missing cells from the strict ledger; never trust old mutable checkpoints.
+5. Stop all workers on a corpus hit, budget floor, validation failure, or queue exhaustion.
+
+Do not expand to arbitrary RTC words, accounts, script types, or free-form call histories until this bounded matrix is complete or target provenance improves.
+
+Generate the provider-neutral queue deterministically:
+
+```bash
+python3 deploy/build_final_queue.py
 ```
 
-`-F` enables physical first-boot mode and sets pre-Terms sessions. `-A/-C`
-select a contiguous post-Terms session range. First-boot mode rejects manual
-fixed chip/mixer offsets so the command cannot silently contradict the physical
-model.
+Expected output: `QUEUE_OK jobs=1153 remaining=1510591168512`. The committed [`artifacts/final_run_queue_2026-08-03.json`](artifacts/final_run_queue_2026-08-03.json) records every pad interval and the exact repeatable `-P` arguments for its missing path cells.
 
-## Scope that is not yet covered
+## Repository map
 
-- 23 legacy P2PKH/P2SH targets need BIP44/BIP49 derivation;
-- change-chain, account, and wider address-index ranges are incomplete;
-- warm/retained RTC states and alternate settings/setup histories are separate
-  hypotheses;
-- dice-derived seeds and unknown BIP39 passphrases are outside this enumeration;
-- the public incident list is on-chain evidence, not proof that every address is
-  an affected Mk2/Mk3 first-wallet address.
+| Path | Purpose |
+|---|---|
+| `gpu/cuda/scan.cu` | CUDA RNG, BIP39, BIP32/BIP84, and target matcher |
+| `proof/firstboot_flow.py` | Direct corrected first-boot model |
+| `proof/firstboot_reference.py` | Independent RNG/call-history oracle |
+| `proof/test_bip84_paths.py` | Official and planted external/change vectors |
+| `deploy/validate_cuda_path_ranges.sh` | Mandatory worker validation gate |
+| `deploy/build_final_queue.py` | Deterministic subtraction of strict prior coverage |
+| `deploy/validate_public_evidence.py` | Hash/count/queue reproducibility gate |
+| `targets/all_bc1q.txt` | 2,311-address target corpus |
+| `artifacts/final_coverage_2026-08-03.json` | Canonical strict coverage ledger |
+| `artifacts/final_run_queue_2026-08-03.json` | 1,153 non-duplicating final-run jobs |
+| `artifacts/public_logs/` | Sanitized immutable evidence summaries and Q=28 logs |
 
-See [`SEARCH_STATUS.md`](SEARCH_STATUS.md) before interpreting any no-hit.
+See [`artifacts/README.md`](artifacts/README.md) for artifact classification.
 
-## Safety boundary
+## Private-hit handling
 
-- Drained, balance-zero addresses and clearly labeled synthetic/public demo
-  targets only.
-- Never create or broadcast a transaction from recovered material.
-- Keep any real hit mode `0600`, off Git and off public logs.
-- Publish only an inert BIP322 message proof independently verified with
-  negative controls.
-- For a still-funded vulnerable wallet: notify the owner; never sweep it.
+Production hit files and recovered key material are Git-ignored. If a corpus address matches:
 
-## Primary references
+1. Stop the fleet immediately.
+2. Copy the private hit file to an offline location.
+3. Re-derive the same address independently on CPU.
+4. Prove control with a fixed inert BIP322 message.
+5. Publish only the address, proof, model coordinates, and evidence hashes—never the key or mnemonic.
 
-- [Coinkite: *Technical Deep Dive into the Entropy Issue*](https://blog.coinkite.com/entropy-technical-backgrounder/)
-- [Block Engineering: *Predictable RNG Fallback and 32-Bit Reseed in COLDCARD Firmware*](https://engineering.block.xyz/blog/predictable-rng-fallback-and-32-bit-reseed-in-coldcard-firmware)
-- [`3z/coldcard-mk3-rng-disclosure`](https://github.com/3z/coldcard-mk3-rng-disclosure)
-  — binary-verified reconstruction
-- [`DK27ss/ColdCard-38M-PoC`](https://github.com/DK27ss/ColdCard-38M-PoC)
-  — independent pipeline and split-skip analysis
-- [COLDCARD firmware tag `2023-06-26T1241-v4.1.9`](https://github.com/Coldcard/firmware/tree/2023-06-26T1241-v4.1.9)
+A match would prove key recovery for one corpus address. It would not by itself prove who generated the wallet or who moved its funds.
+
+## Primary sources
+
+- MicroPython RNG implementation pinned at [`4107246`](https://github.com/micropython/micropython/blob/4107246f8a080807b62c3b4838e71e812ea68b6f/ports/stm32/rng.c)
+- COLDCARD firmware keypad shuffle at [`2023-06-26T1241-v4.1.9`](https://github.com/Coldcard/firmware/blob/2023-06-26T1241-v4.1.9/shared/mempad.py)
+- Block Engineering, [Downgrade attack vulnerability in COLDCARD Mk2/Mk3](https://blog.blockeng.ch/2024/06/12/coldcard-downgrade-attack.html)
+- Coinkite, [Technical Backgrounder: COLDCARD Mk2/Mk3 Entropy](https://blog.coinkite.com/technical-backgrounder/)
+- BIP84, [Derivation scheme for P2WPKH accounts](https://github.com/bitcoin/bips/blob/master/bip-0084.mediawiki)
+- Public target lead, [`bnt21/coldcard-watch`](https://github.com/bnt21/coldcard-watch)
+
+## Failed and superseded approaches
+
+These are retained here only to prevent repetition:
+
+- The original GPU run began roughly 3,134 chip draws too early because it omitted fresh-device initialization.
+- The old Metal prototype does not implement the corrected first-boot flow and must not be used for production claims.
+- Generic fixed skip windows do not substitute for source-reachable keypad-session histories.
+- Live checkpoints overstated publishable coverage when raw worker logs disappeared.
+- Broad index-zero repetition was less valuable than explicit external/change path ranges.
+- Blind RTC or arbitrary-history expansion is not justified while target provenance is unresolved.

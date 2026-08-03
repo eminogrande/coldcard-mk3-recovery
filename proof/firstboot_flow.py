@@ -115,7 +115,8 @@ def rng_raw_first_boot(pad, rtcTR, rtcSSR, pre_terms, post_terms):
 def _wl():
     import os
     p = os.path.join(os.path.dirname(__file__), "..", "scan", "bip39_english.txt")
-    return [w.strip() for w in open(p) if w.strip()]
+    with open(p, encoding="utf-8") as handle:
+        return [w.strip() for w in handle if w.strip()]
 
 
 def entropy_to_seed(entropy):
@@ -165,10 +166,14 @@ def _ckd(k, c, i):
     return ((int.from_bytes(I[:32], "big") + int.from_bytes(k, "big")) % N).to_bytes(32, "big"), I[32:]
 
 
-def bip84_priv(seed64, index=0):
+def bip84_priv(seed64, index=0, chain=0, account=0):
+    if chain not in (0, 1):
+        raise ValueError("BIP84 chain must be 0 (external) or 1 (change)")
+    if not (0 <= index < 0x80000000 and 0 <= account < 0x80000000):
+        raise ValueError("BIP84 account/index must be non-hardened inputs")
     I = hmac.new(b"Bitcoin seed", seed64, hashlib.sha512).digest()
     k, c = I[:32], I[32:]
-    for i in (84 | 0x80000000, 0x80000000, 0x80000000, 0, index):
+    for i in (84 | 0x80000000, 0x80000000, account | 0x80000000, chain, index):
         k, c = _ckd(k, c, i)
     return k
 

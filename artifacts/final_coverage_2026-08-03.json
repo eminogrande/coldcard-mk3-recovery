@@ -1,0 +1,186 @@
+{
+  "snapshot_utc": "2026-08-03T06:06:16Z",
+  "state": "frozen; zero rentals; no corpus hit",
+  "classification": "strict public evidence ledger; ambiguous or lost logs excluded",
+  "production_inputs": {
+    "scan_cu_sha256": "9ffb27b69352a431c39d1c59040bbbc463d1a6b703825803bbcc244f5a9dd08e",
+    "bip39_english_sha256": "2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda",
+    "targets_all_bc1q_sha256": "e046efba8a8baf55493e3628c61cd266fe6348da9a37cd39c370e01e3396466a",
+    "target_count": 2311,
+    "git_commit": "d5bb000592565506c0e38cd694487dc88add9146",
+    "source_path": "gpu/cuda/scan.cu"
+  },
+  "fixed_model": {
+    "rtc_tr": 0,
+    "rtc_ssr": 0,
+    "pre_terms_sessions": 2,
+    "bip39_passphrase": "empty",
+    "dice_entropy": "none",
+    "purpose": 84,
+    "coin_type": 0,
+    "account": 0
+  },
+  "target_corpus": {
+    "source": "https://github.com/bnt21/coldcard-watch",
+    "limitation": "Upstream does not prove that listed addresses were produced by weak seeds or that every sweep was theft."
+  },
+  "coverage": [
+    {
+      "post_terms_sessions": 18,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          3690987520
+        ],
+        [
+          3724541952,
+          4294967296
+        ]
+      ],
+      "unique_candidate_address_derivations": 4261412864,
+      "audit_log": "artifacts/public_logs/cuda_physical_post18_audit.log",
+      "audit_sha256": "324d95f64515204fde78a3a9289824f617cd26688bc5d914a7b4a6b3a4dd017d"
+    },
+    {
+      "post_terms_sessions": 20,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          1073741824
+        ],
+        [
+          1107296256,
+          3590324224
+        ]
+      ],
+      "unique_candidate_address_derivations": 3556769792,
+      "audit_log": "artifacts/public_logs/cuda_physical_post20_audit.log",
+      "audit_sha256": "3c1dd566b7b4b89bcb537788b067728ac46efb7e51e98f7870883c16e027aeb6"
+    },
+    {
+      "post_terms_sessions": 22,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          4294967296
+        ]
+      ],
+      "unique_candidate_address_derivations": 4294967296,
+      "audit_log": "artifacts/public_logs/cuda_physical_post22_audit.log",
+      "audit_sha256": "e5136282837908efa87b0a6a123abafbb7a8e4d03787e73ea3fb2a8525291a72"
+    },
+    {
+      "post_terms_sessions": 24,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          4194304,
+          4294967296
+        ]
+      ],
+      "unique_candidate_address_derivations": 4290772992,
+      "audit_log": "artifacts/public_logs/cuda_physical_post24_audit.log",
+      "audit_sha256": "c2213f61e93e178e3f8accf476401122f01142d2ccdacb2a8df33094adbfa939"
+    },
+    {
+      "post_terms_sessions": 26,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          4294967296
+        ]
+      ],
+      "unique_candidate_address_derivations": 4294967296,
+      "audit_log": "artifacts/public_logs/cuda_physical_post26_audit.log",
+      "audit_sha256": "c20553f3cba7b8d049d6a7114505c3814e79bcc2d4ad55fb7cb2dac7baa2bcad"
+    },
+    {
+      "post_terms_sessions": 28,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          4294967296
+        ]
+      ],
+      "unique_candidate_address_derivations": 4294967296,
+      "audit_log": "artifacts/public_logs/cuda_physical_post28_audit.log",
+      "audit_sha256": "b92ff3863ea3ad04077685d2423ca6cd0393dc77e9d9ece781ec17e97c3a55a7"
+    },
+    {
+      "post_terms_sessions": 30,
+      "chain": 0,
+      "indexes": [
+        0
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          3556769792
+        ]
+      ],
+      "unique_candidate_address_derivations": 3556769792,
+      "audit_log": "artifacts/public_logs/cuda_physical_post30_audit.log",
+      "audit_sha256": "6ac6ef8fe4a5d7720aa215bdb65aa5bc7277c3f54a18202fb2e1bb097c071613"
+    },
+    {
+      "post_terms_sessions": 28,
+      "chain": 0,
+      "indexes": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ],
+      "completed_pad_intervals": [
+        [
+          0,
+          1006632960
+        ]
+      ],
+      "unique_candidate_address_derivations": 7046430720,
+      "audit_log": "artifacts/public_logs/cuda_firstboot_q28_i0_7_audit.log",
+      "audit_sha256": "0fe3180b7a24e8d0c002088705b3e20433260f450974da196f6d395d3737569c"
+    }
+  ],
+  "strict_unique_candidate_address_derivations": 35597058048,
+  "full_pad_equivalents": 8.2880859375,
+  "equivalent_bits": 35.05103896211741,
+  "real_target_hits": 0,
+  "excluded_from_strict_total": [
+    "Operationally observed Q20/Q22/Q24/Q26 multi-index checkpoints whose raw worker logs were not retained.",
+    "Q18 interleaved-controller shard [3690987520,3724541952).",
+    "Q20 checkpoint-only shard [1073741824,1107296256).",
+    "Q24 index-0 gap [0,4194304).",
+    "Every partial shard present at shutdown."
+  ],
+  "post_freeze_scanner": {
+    "scan_cu_sha256": "6245a1e74a8f02bb5fe84156b3c9fd1cc7f184b321dcfc66d624da635cef22cd",
+    "status": "supports repeatable disjoint BIP84 account-0 path ranges; 11 CPU/source tests pass; NVIDIA compile and planted multi-path control pending top-up"
+  }
+}

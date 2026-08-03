@@ -1,35 +1,28 @@
-# Artifact manifest and data classification
+# Artifact classification
 
-This directory contains reproducibility evidence. Some fixtures contain private
-keys, but only for deterministic synthetic wallets or already-public inert demo
-wallets that never held funds.
+The canonical strict result is [`final_coverage_2026-08-03.json`](final_coverage_2026-08-03.json). It counts only derivations supported by retained, unambiguous evidence.
 
-## Key-bearing public fixtures
+## Public evidence
 
-| File | Classification |
+| Path | Classification |
 |---|---|
-| `hit_planted_demo.json` | synthetic planted wallet; no funds |
-| `hit_cuda_planted.json` | synthetic planted wallet; no funds |
-| `hit_dk27ss_thirdparty.json` | independently published public demo wallet; inert |
-| `cuda_firstboot_vector.json` | synthetic split-skip control; explicitly labeled in JSON |
-| `cuda_firstboot_hits.json` | raw CUDA output for `cuda_firstboot_vector.json`; same synthetic key |
-| `cuda_physical_firstboot_vector.json` | synthetic source-faithful physical-flow control; explicitly labeled in JSON |
+| `final_coverage_2026-08-03.json` | immutable strict coverage ledger |
+| `final_run_queue_2026-08-03.json` | deterministic final matrix minus strict prior coverage |
+| `public_logs/cuda_physical_post*_audit.log` | sanitized index-0 per-history audits |
+| `public_logs/cuda_firstboot_q28_i0_7_{controller,sweep,audit}.log` | sanitized Q=28 external-indexes-0–7 evidence |
+| `cuda_firstboot_vector.json` and related hit files | synthetic first-boot positive controls; no funds |
+| `hit_planted_demo.json`, `hit_cuda_planted.json` | synthetic positive controls; no funds |
+| `hit_dk27ss_thirdparty.json` | already-public inert demonstration fixture |
 
-BIP322 files prove control only of those inert fixtures. They are not evidence
-of a real-victim recovery.
+The older `public_coverage_snapshot.json` is retained only as a historical snapshot and is superseded by `final_coverage_2026-08-03.json`.
 
-## Real-target evidence
+## Excluded evidence
 
-`public_coverage_snapshot.json` records exact merged half-open intervals,
-fingerprints, control/error counts and SHA-256 provenance at a fixed timestamp.
-`public_logs/` contains concise per-history sanitized audits. Mutable raw
-provider logs and live checkpoint JSONs stay local and Git-ignored; they contain
-no scientific input absent from the public ledger. A production hit is written
-separately with mode `0600` and immediately triggers fleet shutdown.
+Operational counters, mutable checkpoints, interleaved controller output, missing worker logs, and partial shutdown shards are excluded from the strict total even when they suggest additional work occurred. The exact exclusions are listed in the canonical ledger.
 
 ## Never commit
 
-`.gitignore` excludes all production secret forms:
+Git ignores production secret material and mutable provider state, including:
 
 ```text
 artifacts/*_private.json
@@ -41,6 +34,4 @@ artifacts/cuda_physical_live_post*_checkpointed.log
 artifacts/cuda_physical_live_post*_checkpoint.json
 ```
 
-If a real target ever matches, Git may contain only the public address, fixed
-inert message, BIP322 proof, hashes, and coverage metadata—never the recovered
-private key or mnemonic.
+If a corpus match occurs, publish only the public address, fixed inert BIP322 proof, model coordinates, and evidence hashes. Never commit the mnemonic or private key.

@@ -1,0 +1,29 @@
+POST22_GAP_RESCAN_BEGIN utc=2026-08-02T23:33:15Z instance=46651866 start=2080374784 stop=2113929216
+9ffb27b69352a431c39d1c59040bbbc463d1a6b703825803bbcc244f5a9dd08e  scan.cu
+93cbec0d261ad9deb1e1c7e48b602a9d038ca7c04e09103cb238a8d92a788e11  cscan
+2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda  bip39_english.txt
+e046efba8a8baf55493e3628c61cd266fe6348da9a37cd39c370e01e3396466a  all_bc1q.txt
+f94c6f5d5c146a0a42fb7468a530cb6c11660df4d3737efa176c58314daefa34  cuda_physical_firstboot_target.txt
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+[cscan] 1 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[16,19) idxMax=1 pads=2 candidates=6
+[cscan] candidates=6/6  0.00 Mcand/s  batch 0.1s  eta 0.0h
+[HIT] 1 match(es); private material only in chmod 0600 output
+[cscan] 1 hit(s) -> control_private.json
+Welcome to vast.ai. If authentication fails, try again after a few seconds, and double check your ssh key.
+Have fun!
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[22,23) idxMax=1 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.18 Mcand/s  batch 23.0s  eta 0.0h
+[cscan] candidates=8388608/33554432  0.18 Mcand/s  batch 23.1s  eta 0.0h
+[cscan] candidates=12582912/33554432  0.18 Mcand/s  batch 23.1s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.18 Mcand/s  batch 23.2s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.18 Mcand/s  batch 23.2s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.18 Mcand/s  batch 23.2s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.18 Mcand/s  batch 23.2s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.18 Mcand/s  batch 23.2s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+POST22_GAP_RESCAN_COMPLETE utc=2026-08-02T23:36:31Z scan_exit=1 real_hit=false

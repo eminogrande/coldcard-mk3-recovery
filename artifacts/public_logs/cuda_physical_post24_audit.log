@@ -1,23 +1,17 @@
-# Public coverage audit: P=2, Q=24
-snapshot_utc=2026-08-02T18:19:44Z
-classification=public sanitized summary; raw mutable provider log retained locally only
+# Final public coverage audit: P=2, Q=24
+snapshot_utc=2026-08-03T06:06:16Z
+classification=public sanitized final evidence; no provider identifiers or private keys
 rtc_tr=0
 rtc_ssr=0
+pre_terms_sessions=2
 derivation=m/84'/0'/0'/0/0
 target_count=2311
 scan_cu_sha256=9ffb27b69352a431c39d1c59040bbbc463d1a6b703825803bbcc244f5a9dd08e
 bip39_english_sha256=2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda
 targets_sha256=e046efba8a8baf55493e3628c61cd266fe6348da9a37cd39c370e01e3396466a
-checkpointed_raw_log_sha256_at_snapshot=a91586d62ab510375e0d97e875d514454936b9d2d124993042ff6274a968e1c4
-predecessor_raw_log_sha256_at_snapshot=0669839abdd5e17294d663bee6ece6e930db39e589672a8f8680bbab36407689
-predecessor_interval=[[4194304,322961408]]
-completed_checkpoint_shards=50
-positive_control_runs=51
-recorded_scan_errors=0
-recorded_resumes=0
-completed_intervals=[[4194304,3678404608]]
-unique_candidates=3674210304
-fraction_of_pad_domain=0.85546875
+raw_log_sha256=dda8a642d53f066e457a00e545eefdadbd01e124272b25fde0e30bac18c81b13
+completed_intervals=[[4194304,4294967296]]
+unique_pad_candidates=4290772992
+fraction_of_pad_domain=0.999023437500
 real_target_hits=0
-known_gap=[0,4194304)
-note=The predecessor monolithic run proves [4194304,322961408); checkpointed shards continue from there.
+note=Excluded [0,4194304): later operational closure was observed but its raw multi-index log was not retained.

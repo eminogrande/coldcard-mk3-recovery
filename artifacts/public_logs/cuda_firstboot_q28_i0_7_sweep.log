@@ -1,0 +1,361 @@
+# Sanitized Q=28 BIP84 external indexes 0-7 scanner evidence
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 33.0s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.7s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.7s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.7s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 33.0s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.7s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.7s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 33.0s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 33.0s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.7s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 33.0s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 33.0s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.7s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit
+[cscan] 2311 targets loaded
+[cscan] G table ready
+[cscan] rtc=0/0 flow=firstboot preTerms=2 postTerms=[28,29) idxMax=8 pads=33554432 candidates=33554432
+[cscan] candidates=4194304/33554432  0.13 Mcand/s  batch 32.9s  eta 0.1h
+[cscan] candidates=8388608/33554432  0.13 Mcand/s  batch 32.8s  eta 0.1h
+[cscan] candidates=12582912/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=16777216/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=20971520/33554432  0.13 Mcand/s  batch 32.9s  eta 0.0h
+[cscan] candidates=25165824/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=29360128/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] candidates=33554432/33554432  0.13 Mcand/s  batch 32.8s  eta 0.0h
+[cscan] exhausted 33554432 candidates, no hit

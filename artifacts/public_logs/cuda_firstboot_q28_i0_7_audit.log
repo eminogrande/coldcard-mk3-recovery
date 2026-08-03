@@ -1,0 +1,18 @@
+# Final public coverage audit: P=2, Q=28, BIP84 external indexes 0-7
+snapshot_utc=2026-08-03T06:06:16Z
+classification=public sanitized final evidence; no provider identifiers or private keys
+rtc_tr=0
+rtc_ssr=0
+pre_terms_sessions=2
+derivation=m/84'/0'/0'/0/indexes[0,8)
+target_count=2311
+scan_cu_sha256=9ffb27b69352a431c39d1c59040bbbc463d1a6b703825803bbcc244f5a9dd08e
+bip39_english_sha256=2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda
+targets_sha256=e046efba8a8baf55493e3628c61cd266fe6348da9a37cd39c370e01e3396466a
+controller_log_sha256=86a4f6b00d1e8a0718a98be9453a241212b9b0721c9419f3fa0477a665745fab
+sweep_log_sha256=cba1f78559b07276ab17bb2c6d57a1c1b33b2bed0619136f347435cf38d88e89
+completed_intervals=[[0,1006632960]]
+index_count=8
+unique_candidate_address_derivations=8053063680
+real_target_hits=0
+note=30 controller completions correspond to 30 target-loaded, fully exhausted scanner blocks; the 31st partial shard is excluded.

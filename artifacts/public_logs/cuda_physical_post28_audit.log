@@ -1,19 +1,17 @@
-# Public coverage audit: P=2, Q=28
-snapshot_utc=2026-08-02T18:19:44Z
-classification=public sanitized summary; raw mutable provider log retained locally only
+# Final public coverage audit: P=2, Q=28
+snapshot_utc=2026-08-03T06:06:16Z
+classification=public sanitized final evidence; no provider identifiers or private keys
 rtc_tr=0
 rtc_ssr=0
+pre_terms_sessions=2
 derivation=m/84'/0'/0'/0/0
 target_count=2311
 scan_cu_sha256=9ffb27b69352a431c39d1c59040bbbc463d1a6b703825803bbcc244f5a9dd08e
 bip39_english_sha256=2f5eed53a4727b4bf8880d8f3f199efc90e58503646d9ff8eff3a2ed3b24dbda
 targets_sha256=e046efba8a8baf55493e3628c61cd266fe6348da9a37cd39c370e01e3396466a
-raw_log_sha256_at_snapshot=1bddc112eeaef04918efa2b2ee6c0b888b6b5fe704225035af101654b272d63e
-completed_checkpoint_shards=58
-positive_control_runs=60
-recorded_scan_errors=0
-recorded_resumes=1
-completed_intervals=[[0,1946157056]]
-unique_candidates=1946157056
-fraction_of_pad_domain=0.453125
+raw_log_sha256=b402f8dc262680ef0c1023e76f818930c5f8ab6169b821c89be684ffb2981d1c
+completed_intervals=[[0,4294967296]]
+unique_pad_candidates=4294967296
+fraction_of_pad_domain=1.000000000000
 real_target_hits=0
+note=All 128 expected disjoint index-0 shards have complete production evidence.
