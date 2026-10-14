@@ -1,8 +1,187 @@
 # COLDCARD Mk3 fallback-RNG recovery research
 
 Reproducible research into whether the predictable MicroPython fallback RNG on vulnerable COLDCARD Mk3 firmware can recover any address in a public on-chain corpus.
+It ships CPU reference models, a CUDA scanner, a strict coverage ledger and sanitized evidence logs.
+It is for Bitcoin security researchers who want to verify or extend the negative result.
 
-> **Final frozen result — 2026-08-03:** no corpus hit. Zero GPU rentals remain. The strict public ledger contains **35,597,058,048 unique candidate-address derivations**. This is a negative result for the exact combinations in the ledger, not proof that the vulnerability was harmless or that every listed address is unrelated.
+## Logs
+
+- [CHANGELOG.md](CHANGELOG.md): release notes per commit, newest first.
+- [PROMPTLOG.md](PROMPTLOG.md): owner instructions that shaped this repo.
+
+## Status
+
+| Field | Value |
+|---|---|
+| Version | v0.1.0 |
+| Date | 2026-10-14 |
+| Updated by | hermes-agent for emino |
+| Default branch | `master` |
+| Default-branch HEAD | `f30e679` |
+| Deployment | not documented in repo as a service. GPU/CPU runs are ad hoc: rented NVIDIA worker for CUDA, Hetzner `hcloud` scripts in `deploy/` for the retired CPU fleet |
+
+> **Final frozen result, 2026-08-03:** no corpus hit. Zero GPU rentals remain. The strict public ledger contains **35,597,058,048 unique candidate-address derivations**. This is a negative result for the exact combinations in the ledger, not proof that the vulnerability was harmless or that every listed address is unrelated.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    SRC["Pinned sources: MicroPython rng.c, COLDCARD mempad.py"] --> PY["proof/firstboot_flow.py"]
+    SRC --> REF["proof/firstboot_reference.py independent oracle"]
+    PY --> TESTS["proof/test_*.py unittest"]
+    REF --> TESTS
+    WL["scan/bip39_english.txt"] --> CUDA["gpu/cuda/scan.cu cscan"]
+    TGT["targets/all_bc1q.txt 2,311 addresses"] --> CUDA
+    GATE["deploy/validate_cuda_path_ranges.sh"] --> CUDA
+    LEDGER["artifacts/final_coverage_2026-08-03.json"] --> QUEUE["deploy/build_final_queue.py"]
+    QUEUE --> QJSON["artifacts/final_run_queue_2026-08-03.json"]
+    QJSON --> CUDA
+    CUDA --> HIT["hit JSON mode 0600, git-ignored if real"]
+    HIT --> BIP["proof/bip322.py and archive_bip322_proof.py"]
+    LEDGER --> VAL["deploy/validate_public_evidence.py"]
+    LOGS["artifacts/public_logs/"] --> VAL
+    GO["scan/ Go ccscan, historical CPU sweep"] --> HZ["deploy/hetzner-*.sh, fleet-*.sh via hcloud"]
+    METAL["gpu/metal/ Metal prototype, superseded"]
+```
+
+## User flow
+
+```mermaid
+sequenceDiagram
+    participant R as Researcher
+    participant P as Python proofs
+    participant Q as Queue builder
+    participant G as NVIDIA worker
+    participant B as BIP322 tool
+    R->>P: run unittest + firstboot_flow.py vector
+    P-->>R: 11 tests OK, chip_skip=3206
+    R->>Q: build_final_queue.py + validate_public_evidence.py
+    Q-->>R: QUEUE_OK jobs=1153, PUBLIC_EVIDENCE_OK
+    R->>G: nvcc build cscan, run validate_cuda_path_ranges.sh
+    G-->>R: CUDA_PATH_RANGE_CONTROL_OK hits=4
+    R->>G: scan queued pad intervals with -P path ranges
+    alt corpus hit
+        G-->>R: private hit JSON, stop fleet
+        R->>B: re-derive on CPU, sign inert BIP322 message
+        B-->>R: publish address, proof, coordinates only
+    else no hit
+        G-->>R: append sanitized audit log, update ledger
+    end
+```
+
+## Components
+
+| Component | Path | Role |
+|---|---|---|
+| CUDA scanner | `gpu/cuda/scan.cu` | RNG, BIP39, BIP32/BIP84 and hash160 target matcher (production) |
+| Shared RNG header | `gpu/rng.h` | Yasmarang RNG used by GPU code |
+| Metal prototype | `gpu/metal/` | Superseded Apple GPU runner (`mscan`), not first-boot correct |
+| Go CPU scanner | `scan/main.go`, `scan/pbkdf2.go` | `ccscan` demo/sweep modes used by the CPU fleet |
+| Early Go scanner | `goscan/` | First Go prototype with `-selftest` |
+| First-boot model | `proof/firstboot_flow.py` | Direct corrected first-boot model |
+| Reference oracle | `proof/firstboot_reference.py` | Independent RNG/call-history oracle |
+| BIP322 tools | `proof/bip322.py`, `proof/archive_bip322_proof.py` | Sign/verify inert ownership proofs |
+| Tests | `proof/test_*.py`, `scan/main_test.go` | Vectors for first boot, BIP84 paths, BIP322, Go port |
+| Validation gate | `deploy/validate_cuda_path_ranges.sh` | Mandatory worker validation |
+| Queue builder | `deploy/build_final_queue.py` | Deterministic subtraction of strict prior coverage |
+| Evidence gate | `deploy/validate_public_evidence.py` | Hash/count/queue reproducibility check |
+| CPU fleet scripts | `deploy/hetzner-fire.sh`, `hetzner-collect.sh`, `hetzner-destroy.sh`, `fleet-fire.sh`, `fleet-watch.sh` | Historical Hetzner sweep via `hcloud` |
+| Target corpus | `targets/all_bc1q.txt` | 2,311-address target corpus; other lists are earlier variants |
+| Drain viewer data | `scanner/drains.js` | Static `window.DRAINS` dataset for the target lead |
+| Coverage ledger | `artifacts/final_coverage_2026-08-03.json` | Canonical strict coverage ledger |
+| Final queue | `artifacts/final_run_queue_2026-08-03.json` | 1,153 non-duplicating final-run jobs |
+| Public logs | `artifacts/public_logs/` | Sanitized immutable evidence summaries and Q=28 logs |
+
+## API / Endpoints
+
+No HTTP routes, MCP tools or bot commands. Command-line entry points found in code:
+
+| Command | Flags / args | Purpose |
+|---|---|---|
+| `gpu/cuda/cscan` | `-t` targets, `-w` wordlist, `-r` RTC TR, `-s` RTC SSR, `-k` chip skip count, `-B` chip skip base, `-m` mixer skip base, `-K` mixer skip count, `-M` lockstep, `-F` pre-Terms sessions, `-A` post-Terms base, `-C` post-Terms count, `-i` index count, `-P CHAIN:START:COUNT`, `-p` pad start, `-e` pad end, `-b` batch threads, `-o` hit file, `-D` debug pad | Production CUDA scan |
+| `gpu/metal/mscan` | `-t -w -r -s -k -i -p -b -o` | Superseded Metal scan |
+| `scan` (`ccscan`) | `-mode demo\|sweep`, `-target`, `-targets`, `-rtc-tr`, `-rtc-ssr`, `-skip-lo`, `-skip-hi`, `-mixer-skip`, `-nidx`, `-pad-start`, `-checkpoint`, `-workers` | Go CPU scanner |
+| `goscan` | `-pad-start`, `-pad-end`, `-skip-max`, `-idx-max`, `-words`, `-victims`, `-selftest` | Early Go scanner |
+| `proof/firstboot_flow.py` | `PAD PRE POST` positional | Print first-boot vector |
+| `proof/firstboot_reference.py` | `--pad`, `--pre-terms-sessions`, `--post-terms-sessions`, `--index`, `--rtc-tr`, `--rtc-ssr`, `--wordlist`, `--output`, `--target-output` | Write reference vector |
+| `proof/bip322.py` | `selftest` / `sign` / `verify` | BIP322 simple proofs |
+| `proof/archive_bip322_proof.py` | `hit address output` | Archive proof from hit JSON |
+| `deploy/build_final_queue.py` | `--ledger`, `--output` | Build final queue |
+| `deploy/validate_public_evidence.py` | none | Evidence gate |
+| `deploy/validate_cuda_path_ranges.sh` | `[BIN]` | CUDA validation gate |
+| `deploy/hetzner-fire.sh` | `[N_SERVERS]` | Start CPU fleet |
+| `deploy/fleet-fire.sh` | `SKIP...` | Start one box per skip |
+
+## Run
+
+Environment variables read by scripts: `CCX_TYPE`, `LOC` (`deploy/hetzner-fire.sh` only). The Hetzner scripts also need an `hcloud` context and `~/.ssh/id_ed25519`. Python, Go and CUDA code read no env vars.
+
+Dependencies: Python 3.11 with `coincurve==21.0.0` (`requirements.txt`), Go 1.25 (`scan/go.mod`), CUDA `nvcc` for the GPU scanner.
+
+### Reproduce locally
+
+Python 3.11 is recommended.
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -W error::ResourceWarning -m unittest discover -s proof -p 'test_*.py' -v
+(cd scan && go test ./...)
+python deploy/build_final_queue.py
+python deploy/validate_public_evidence.py
+```
+
+Expected results include `Ran 11 tests ... OK`, `QUEUE_OK jobs=1153 remaining=1510591168512`, and `PUBLIC_EVIDENCE_OK strict=35597058048 jobs=1153 remaining=1510591168512`. The Go build currently emits OpenSSL 3 SHA-512 deprecation warnings but passes.
+
+Check the representative corrected first-boot vector:
+
+```bash
+python proof/firstboot_flow.py 3547157718 2 22
+```
+
+Expected core values:
+
+```text
+chip_skip=3206
+mixer_skip=3514
+raw prefix=8e1d0981
+entropy prefix=da85ce09
+hash160=74f34da837a78231dd3bd6ccc983638570454cdb
+```
+
+### CUDA scanner
+
+Compile natively on the selected NVIDIA worker:
+
+```bash
+nvcc -std=c++14 -O3 -arch=sm_89 gpu/cuda/scan.cu -o gpu/cuda/cscan
+bash deploy/validate_cuda_path_ranges.sh gpu/cuda/cscan
+```
+
+The validation script must print:
+
+```text
+CUDA_PATH_RANGE_CONTROL_OK hits=4 mode=600
+```
+
+It verifies the exact RNG vector plus planted BIP84 paths at external indexes 8 and 19 and change indexes 0 and 19. Production scanning must not start unless this gate passes.
+
+### Path selection
+
+Legacy behavior remains:
+
+```text
+-i N  == external chain indexes [0,N)
+```
+
+Disjoint ranges avoid repeating already-covered indexes:
+
+```bash
+-P 0:8:12 -P 1:0:20
+```
+
+That means external indexes 8–19 and change indexes 0–19. `-i` and `-P` cannot be combined; overlapping `-P` ranges are rejected. Hit JSON records the absolute `chain` and `idx` and is created with mode `0600`.
 
 ## What this repository establishes
 
@@ -98,71 +277,6 @@ The scanner's positive controls worked, so the result primarily weakens the **te
 
 The simplest explanation may be that no corpus address was generated by the vulnerable flow at all.
 
-## Reproduce locally
-
-Python 3.11 is recommended.
-
-```bash
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -W error::ResourceWarning -m unittest discover -s proof -p 'test_*.py' -v
-(cd scan && go test ./...)
-python deploy/build_final_queue.py
-python deploy/validate_public_evidence.py
-```
-
-Expected results include `Ran 11 tests ... OK`, `QUEUE_OK jobs=1153 remaining=1510591168512`, and `PUBLIC_EVIDENCE_OK strict=35597058048 jobs=1153 remaining=1510591168512`. The Go build currently emits OpenSSL 3 SHA-512 deprecation warnings but passes.
-
-Check the representative corrected first-boot vector:
-
-```bash
-python proof/firstboot_flow.py 3547157718 2 22
-```
-
-Expected core values:
-
-```text
-chip_skip=3206
-mixer_skip=3514
-raw prefix=8e1d0981
-entropy prefix=da85ce09
-hash160=74f34da837a78231dd3bd6ccc983638570454cdb
-```
-
-## CUDA scanner
-
-Compile natively on the selected NVIDIA worker:
-
-```bash
-nvcc -std=c++14 -O3 -arch=sm_89 gpu/cuda/scan.cu -o gpu/cuda/cscan
-bash deploy/validate_cuda_path_ranges.sh gpu/cuda/cscan
-```
-
-The validation script must print:
-
-```text
-CUDA_PATH_RANGE_CONTROL_OK hits=4 mode=600
-```
-
-It verifies the exact RNG vector plus planted BIP84 paths at external indexes 8 and 19 and change indexes 0 and 19. Production scanning must not start unless this gate passes.
-
-### Path selection
-
-Legacy behavior remains:
-
-```text
--i N  == external chain indexes [0,N)
-```
-
-Disjoint ranges avoid repeating already-covered indexes:
-
-```bash
--P 0:8:12 -P 1:0:20
-```
-
-That means external indexes 8–19 and change indexes 0–19. `-i` and `-P` cannot be combined; overlapping `-P` ranges are rejected. Hit JSON records the absolute `chain` and `idx` and is created with mode `0600`.
-
 ## Highest-probability final run after top-up
 
 The final bounded matrix is:
@@ -178,7 +292,7 @@ The final bounded matrix is:
 
 Full size: **1,546,188,226,560 derivations (`2^40.49`)**. Strict remaining work: **1,510,591,168,512 derivations**, or **351.7119140625 pad equivalents**.
 
-This matrix is chosen because path expansion is bounded by standard wallet discovery practice and is better supported than arbitrary RTC expansion. Its numerical proximity to Coinkite's preliminary “about 40 effective bits” estimate does **not** establish that Coinkite used these same dimensions.
+This matrix is chosen because path expansion is bounded by standard wallet discovery practice and is better supported than arbitrary RTC expansion. Its numerical proximity to Coinkite's preliminary "about 40 effective bits" estimate does **not** establish that Coinkite used these same dimensions.
 
 Execution order after funding:
 
@@ -198,22 +312,6 @@ python3 deploy/build_final_queue.py
 
 Expected output: `QUEUE_OK jobs=1153 remaining=1510591168512`. The committed [`artifacts/final_run_queue_2026-08-03.json`](artifacts/final_run_queue_2026-08-03.json) records every pad interval and the exact repeatable `-P` arguments for its missing path cells.
 
-## Repository map
-
-| Path | Purpose |
-|---|---|
-| `gpu/cuda/scan.cu` | CUDA RNG, BIP39, BIP32/BIP84, and target matcher |
-| `proof/firstboot_flow.py` | Direct corrected first-boot model |
-| `proof/firstboot_reference.py` | Independent RNG/call-history oracle |
-| `proof/test_bip84_paths.py` | Official and planted external/change vectors |
-| `deploy/validate_cuda_path_ranges.sh` | Mandatory worker validation gate |
-| `deploy/build_final_queue.py` | Deterministic subtraction of strict prior coverage |
-| `deploy/validate_public_evidence.py` | Hash/count/queue reproducibility gate |
-| `targets/all_bc1q.txt` | 2,311-address target corpus |
-| `artifacts/final_coverage_2026-08-03.json` | Canonical strict coverage ledger |
-| `artifacts/final_run_queue_2026-08-03.json` | 1,153 non-duplicating final-run jobs |
-| `artifacts/public_logs/` | Sanitized immutable evidence summaries and Q=28 logs |
-
 See [`artifacts/README.md`](artifacts/README.md) for artifact classification.
 
 ## Private-hit handling
@@ -224,7 +322,7 @@ Production hit files and recovered key material are Git-ignored. If a corpus add
 2. Copy the private hit file to an offline location.
 3. Re-derive the same address independently on CPU.
 4. Prove control with a fixed inert BIP322 message.
-5. Publish only the address, proof, model coordinates, and evidence hashes—never the key or mnemonic.
+5. Publish only the address, proof, model coordinates, and evidence hashes, never the key or mnemonic.
 
 A match would prove key recovery for one corpus address. It would not by itself prove who generated the wallet or who moved its funds.
 
